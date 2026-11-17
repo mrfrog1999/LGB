@@ -1,0 +1,34 @@
+services:
+  finance-calendar:
+    # 从源码构建，并打成 Docker Hub 同名标签，方便与线上版本对齐
+    build: .
+    image: "${IMAGE:-mrfrog1989/fpc:latest}"
+    container_name: finance-calendar
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器端口；想换端口改左边，或在 .env 里设 PORT
+      - "${PORT:-8080}:8080"
+    environment:
+      TZ: Asia/Shanghai
+      PORT: 8080
+      DB_PATH: /data/finance.db
+      SESSION_SECRET: "${SESSION_SECRET:-please-change-this-in-env}"
+      BOOTSTRAP_USER: "${BOOTSTRAP_USER:-admin}"
+      BOOTSTRAP_PASSWORD: "${BOOTSTRAP_PASSWORD:-admin12345}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-0}"
+      # 可选：邮件通知
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_SECURE: "${SMTP_SECURE:-true}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_TO: "${SMTP_TO:-}"
+    volumes:
+      # SQLite 数据库、备份都落在宿主机 ./data，删容器不丢数据
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
