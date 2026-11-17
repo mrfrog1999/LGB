@@ -6,7 +6,7 @@ services:
     container_name: finance-calendar
     restart: unless-stopped
     ports:
-      - "${PORT:-88888}:8080"
+      - "${PORT:-38888}:8080"
     environment:
       TZ: Asia/Shanghai
       PORT: 8080

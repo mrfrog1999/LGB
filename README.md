@@ -34,7 +34,7 @@ cp .env.example .env
 # 2) 构建并启动
 docker compose up -d --build
 
-# 3) 打开 http://服务器IP:88888
+# 3) 打开 http://服务器IP:38888
 ```
 
 首次启动会自动创建账号（默认 `admin` / `admin12345`，可用 `.env` 里的
@@ -120,7 +120,7 @@ docker compose -f docker-compose.deploy.yml up -d
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `PORT` | 88888 | 宿主机端口（容器内固定 8080） |
+| `PORT` | 38888 | 宿主机端口（容器内固定 8080）。**必须是 1-65535**，超过会报 `invalid hostPort` |
 | `SESSION_SECRET` | — | 会话签名密钥，**必须改成随机串** |
 | `BOOTSTRAP_USER` | admin | 首次启动建的管理员账号 |
 | `BOOTSTRAP_PASSWORD` | admin12345 | 同上，登录后请修改 |
@@ -159,11 +159,21 @@ docker compose -f docker-compose.deploy.yml up -d
 ...
 ```
 
+## 端口注意
+
+宿主机端口**必须是 1-65535** 之间的整数。写成 `88888` 这类五位数以上会直接报：
+
+```
+docker-compose config failed, invalid hostPort: 88888
+```
+
+不是面板不兼容，是端口号本身越界。想用一个不常见的号，选 `38888`、`18888`、`28888` 这类都行。
+
 ## Oracle Cloud（OCI）部署要点
 
 Oracle 的机器有两道墙，**只开一道是不够的**：OCI 控制台的安全列表 + 实例内部的 iptables。
 
-### 1. 控制台放行 88888
+### 1. 控制台放行 38888
 
 计算 → 实例 → 点进实例 → 所属的 **Virtual Cloud Network** → **Security List**（或你用的 NSG）→
 Add Ingress Rule：
@@ -172,7 +182,7 @@ Add Ingress Rule：
 |---|---|
 | Source CIDR | `0.0.0.0/0`（想只给自己访问就填你的家宽 IP/32） |
 | IP Protocol | `TCP` |
-| Destination Port Range | `88888` |
+| Destination Port Range | `38888` |
 
 ### 2. 实例内部再放行（Ubuntu 镜像默认会拦）
 
@@ -180,14 +190,14 @@ Oracle 的 Ubuntu 镜像自带一条末尾 `REJECT all` 的 iptables 规则，�
 
 ```bash
 sudo iptables -L INPUT --line-numbers -n      # 先看规则顺序，找到 REJECT 所在行号
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 88888 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 38888 -j ACCEPT
 sudo netfilter-persistent save                # 持久化，重启不丢
 ```
 
 Oracle Linux / CentOS 系用 firewalld：
 
 ```bash
-sudo firewall-cmd --permanent --add-port=88888/tcp && sudo firewall-cmd --reload
+sudo firewall-cmd --permanent --add-port=38888/tcp && sudo firewall-cmd --reload
 ```
 
 ### 3. 装 Docker
@@ -212,7 +222,7 @@ cp .env.example .env
 sed -i "s|SESSION_SECRET=.*|SESSION_SECRET=$(openssl rand -hex 32)|" .env
 
 docker compose -f docker-compose.deploy.yml up -d
-curl http://127.0.0.1:88888/api/health    # 期望 {"ok":true,...}
+curl http://127.0.0.1:38888/api/health    # 期望 {"ok":true,...}
 ```
 
 ### 5. 自检不通时的排查顺序
@@ -220,8 +230,8 @@ curl http://127.0.0.1:88888/api/health    # 期望 {"ok":true,...}
 ```bash
 docker compose -f docker-compose.deploy.yml ps      # 容器是否 Up / healthy
 docker compose -f docker-compose.deploy.yml logs --tail=50
-ss -tlnp | grep 88888                               # 宿主机端口是否在监听
-sudo iptables -L INPUT -n | grep 88888              # 本机规则是否放行
+ss -tlnp | grep 38888                               # 宿主机端口是否在监听
+sudo iptables -L INPUT -n | grep 38888              # 本机规则是否放行
 ```
 
 外网仍打不开 → 99% 是 OCI 安全列表那条入站规则没加，或加在了别的 VCN / NSG 上。

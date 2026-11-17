@@ -1,0 +1,33 @@
+# 无变量版本：所有值写死，兼容 1Panel / 宝塔 / 群晖 / 老版 docker-compose
+# 用法：docker compose -f docker-compose.plain.yml up -d
+#
+# 注意：SESSION_SECRET 必须改成你自己的随机串（openssl rand -hex 32）
+services:
+  finance-calendar:
+    image: ghcr.io/mrfrog1999/fpc:latest
+    container_name: finance-calendar
+    restart: unless-stopped
+    ports:
+      - "38888:8080"
+    environment:
+      TZ: Asia/Shanghai
+      PORT: "8080"
+      DB_PATH: "/data/finance.db"
+      SESSION_SECRET: "please-change-this-to-a-long-random-string"
+      BOOTSTRAP_USER: "admin"
+      BOOTSTRAP_PASSWORD: "admin12345"
+      COOKIE_SECURE: "0"
+      SMTP_HOST: ""
+      SMTP_PORT: "465"
+      SMTP_SECURE: "true"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_TO: ""
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
