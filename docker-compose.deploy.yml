@@ -1,8 +1,8 @@
-# 只用现成镜像部署（不在服务器上构建）
+# 直接使用 GitHub Actions 构建好的镜像（不在服务器上构建）
 # 用法：docker compose -f docker-compose.deploy.yml up -d
 services:
   finance-calendar:
-    image: mrfrog1989/fpc:latest
+    image: "${IMAGE:-ghcr.io/mrfrog1999/fpc:latest}"
     container_name: finance-calendar
     restart: unless-stopped
     ports:

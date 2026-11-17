@@ -1,8 +1,8 @@
 services:
   finance-calendar:
-    # 从源码构建，并打成 Docker Hub 同名标签，方便与线上版本对齐
+    # 从源码构建，并打成与 GHCR 一致的标签，方便和线上版本对齐
     build: .
-    image: "${IMAGE:-mrfrog1989/fpc:latest}"
+    image: "${IMAGE:-ghcr.io/mrfrog1999/fpc:latest}"
     container_name: finance-calendar
     restart: unless-stopped
     ports:

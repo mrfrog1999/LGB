@@ -46,55 +46,75 @@ docker compose up -d --build
 tar czf finance-calendar-$(date +%F).tar.gz data/
 ```
 
-## 用现成镜像部署（推荐，服务器上不需要构建）
+## 两种部署方式
 
-镜像由 GitHub Actions 自动构建推送到 Docker Hub：`mrfrog1989/fpc`（amd64 / arm64 双架构）。
+镜像由 GitHub Actions 自动构建，发布在 **GitHub 自己的镜像仓库**（GHCR，不经过 Docker Hub）：
+
+```
+ghcr.io/mrfrog1999/fpc:latest
+```
+
+支持 `linux/amd64` 与 `linux/arm64` 双架构，标签有 `latest`、`v1.2.3`（打 tag 时）、`sha-xxxxxxx`、`20261117`。
+
+### 方式 A：服务器本地构建（用 `docker-compose.yml`）
+
+适合想自己掌控代码、或改动了源码的情况：
+
+```bash
+git clone git@github.com:mrfrog1999/FPC.git finance-calendar
+cd finance-calendar
+cp .env.example .env        # 改 SESSION_SECRET
+docker compose up -d --build
+```
+
+`docker compose` 会用目录里的 `Dockerfile` 现场构建，并把镜像打成 `ghcr.io/mrfrog1999/fpc:latest`，与线上标签保持一致。
+
+### 方式 B：直接拉现成镜像（用 `docker-compose.deploy.yml`）
+
+服务器上不需要源码、不需要构建，只要这个 compose 文件：
 
 ```bash
 mkdir finance-calendar && cd finance-calendar
-curl -O https://raw.githubusercontent.com/<你的账号>/<仓库名>/main/docker-compose.deploy.yml
-cp .env.example .env   # 或自己写四个必需变量
+curl -O https://raw.githubusercontent.com/mrfrog1999/FPC/main/docker-compose.deploy.yml
+curl -O https://raw.githubusercontent.com/mrfrog1999/FPC/main/.env.example
+cp .env.example .env        # 改 SESSION_SECRET
+
 docker compose -f docker-compose.deploy.yml up -d
 ```
 
-更新版本只需：
+更新版本：
 
 ```bash
 docker compose -f docker-compose.deploy.yml pull
 docker compose -f docker-compose.deploy.yml up -d
 ```
 
-数据库在 `./data/finance.db`，更新镜像不动数据。
+数据库始终在 `./data/finance.db`，换镜像不动数据。
 
-## 推送到 GitHub 并自动构建镜像
+> **私有镜像要先登录**：GitHub Packages 的容器默认继承仓库可见性，私有仓库 → 私有镜像。
+> 服务器上执行一次：
+>
+> ```bash
+> echo "<你的 GitHub PAT，勾选 read:packages>" | docker login ghcr.io -u mrfrog1999 --password-stdin
+> ```
+>
+> 不想每次登录，就在 GitHub → 你的头像 → Your packages → `fpc` → Package settings 里把可见性改成 **Public**（里面只有程序，没有存单数据）。
 
-1. 在 GitHub 建一个**私有**仓库（不要勾选 README/gitignore 初始化）。
-2. 本目录已带好 `.github/workflows/docker-image.yml`，推到 `main` 分支即自动构建并推送。
-3. 仓库 → Settings → Secrets and variables → Actions，加两个 secret：
+## GitHub Actions 怎么构建
 
-   | Secret | 值 |
-   |---|---|
-   | `DOCKERHUB_USERNAME` | `mrfrog1989` |
-   | `DOCKERHUB_TOKEN` | Docker Hub → Account settings → Personal access tokens 生成的 **Read & Write** token（不要用登录密码） |
+`.github/workflows/docker-image.yml` 已经配好，**不需要任何 secret**——用 Actions 自动注入的 `GITHUB_TOKEN` 登录 GHCR：
 
-4. 推送代码：
+| 项 | 设置 |
+|---|---|
+| 触发 | push 到 `main`、打 `v*` tag、手动 Run workflow |
+| 架构 | `linux/amd64` + `linux/arm64` |
+| 推送目标 | `ghcr.io/mrfrog1999/fpc` |
+| 缓存 | `type=gha`，第二次起快很多 |
 
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: 理财日历 Docker 版"
-   git branch -M main
-   git remote add origin https://github.com/<你的账号>/<仓库名>.git
-   git push -u origin main
-   ```
+首次构建约 8-12 分钟（arm64 走 QEMU 模拟偏慢）。只想在 amd64 上跑、想省一半时间，把 workflow 里
+`platforms: linux/amd64,linux/arm64` 改成 `platforms: linux/amd64`。
 
-5. 打开仓库 Actions 页面看 `Build & Push Docker Image`，首次构建约 8-12 分钟（含 arm64 的 QEMU 模拟）。
-   构建产物标签：`latest`（仅默认分支）、`v1.2.3`（打 tag 时）、`sha-xxxxxxx`、`20261117`（日期）。
-
-镜像地址：`docker.io/mrfrog1989/fpc:latest`
-
-> 只在 amd64 服务器上用、想省一半构建时间？把 workflow 里的
-> `platforms: linux/amd64,linux/arm64` 改成 `platforms: linux/amd64` 即可。
+如果要改镜像仓库名，改两处：workflow 里的 `IMAGE_NAME`、compose 里的 `image:`。
 
 ## 配置项（.env）
 
