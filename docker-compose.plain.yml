@@ -7,6 +7,9 @@ services:
     image: ghcr.io/mrfrog1999/fpc:latest
     container_name: finance-calendar
     restart: unless-stopped
+    # 用 root 跑，避免宿主机 ./data 目录属主不是 node(uid 1000) 导致 SQLITE_CANTOPEN
+    # 想更严格可删掉这行，改在宿主机执行：sudo chown -R 1000:1000 ./data
+    user: "0:0"
     ports:
       - "6868:8080"
     environment:

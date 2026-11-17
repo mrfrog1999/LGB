@@ -314,6 +314,22 @@ docker/
 
 ## 常见问题
 
+**容器反复重启，日志 `SQLITE_CANTOPEN: unable to open database file`**
+
+镜像里以 `node`（uid 1000）运行，而 compose 用 `./data:/data` 绑定挂载时，宿主机这个目录
+通常属于 root，容器内写不进去。两种解法，任选其一：
+
+```bash
+# 解法一（推荐）：让宿主机目录归 uid 1000
+sudo mkdir -p ./data && sudo chown -R 1000:1000 ./data
+```
+
+```yaml
+# 解法二：让容器用 root 跑（docker-compose.plain.yml 已经默认这样）
+    user: "0:0"
+```
+
+
 **端口被占用**：改 `.env` 的 `PORT`（例如 8088），`docker compose up -d`。
 
 **登录后一直跳回登录页**：多半是 `COOKIE_SECURE=1` 但访问的是 http；改成 `0` 或配好 HTTPS。
