@@ -1,27 +1,26 @@
-# 理财日历 Web 版 —— 单镜像，SQLite 单文件存储
-FROM node:20-slim
+FROM python:3.12-slim
 
-ENV TZ=Asia/Shanghai \
-    NODE_ENV=production \
-    PORT=8080 \
-    DB_PATH=/data/finance.db
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TZ=Asia/Shanghai
 
 WORKDIR /app
 
-# 依赖单独一层，代码变更不会重复装依赖；用 lock 文件保证版本可复现
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tzdata ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
 
-COPY server ./server
-COPY web ./web
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 数据目录由 compose 挂载；先建好并交给 node 用户
-RUN mkdir -p /data && chown -R node:node /data /app
-USER node
+COPY app ./app
+
+RUN mkdir -p /data
+VOLUME ["/data"]
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
-CMD ["node", "server/index.js"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>建行理财 · 收益监控</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f5c4e'/%3E%3Cpath d='M6 22 L13 15 L18 19 L26 10' stroke='%23fff' stroke-width='2.5' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top">
+      <span class="brand">建行理财 · 收益监控</span>
+      <span class="pill" id="nextRun">定时同步中</span>
+    </div>
+    <div class="hero-amount">
+      <span class="cny">¥</span><span id="totalBalance">--</span>
+    </div>
+    <div class="hero-meta">
+      <div class="meta-item"><span id="prodCount">0</span><label>监控产品</label></div>
+      <div class="meta-item"><span id="totalInterest">--</span><label>累计收益</label></div>
+      <div class="meta-item"><span id="totalAnnual">--</span><label>区间年化</label></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="toolbar card">
+    <div class="search-row">
+      <input id="searchInput" type="text" autocomplete="off" placeholder="输入产品名称，例如：建信宝按日开放式">
+      <button id="searchBtn" class="btn primary">搜索产品</button>
+    </div>
+    <div class="action-row">
+      <button id="syncBtn" class="btn ghost">同步全部</button>
+      <button id="mailBtn" class="btn ghost">发送测试邮件</button>
+      <span class="hint" id="updateHint"></span>
+    </div>
+  </section>
+
+  <section id="productList" class="products"></section>
+
+  <section class="card notes">
+    <h3>关于收益计算</h3>
+    <p>建行披露的「七日年化收益率」是过去 7 个自然日收益折算的年化值。本站按
+      <b>日收益 = 当日余额 × 七日年化 ÷ 365</b> 逐日计提，并把当日收益滚入次日余额（滚动复利）。</p>
+    <p>数据来自建行官网理财产品信息披露中的<b>净值公告 PDF</b>（含每日净值日期、七日年化、每万份收益），
+      每天自动抓取增量。估算结果与实际计息会有细微差异，仅供参考。</p>
+  </section>
+</main>
+
+<div id="modalRoot" class="modal-root" hidden></div>
+<div id="toastRoot" class="toast-root"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

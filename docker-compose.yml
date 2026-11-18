@@ -1,34 +1,15 @@
 services:
-  finance-calendar:
-    # 从源码构建，并打成与 GHCR 一致的标签，方便和线上版本对齐
+  ccb-wealth-monitor:
     build: .
-    image: "${IMAGE:-ghcr.io/mrfrog1999/fpc:latest}"
-    container_name: finance-calendar
+    image: ccb-wealth-monitor:latest
+    container_name: ccb-wealth-monitor
     restart: unless-stopped
     ports:
-      # 宿主机端口:容器端口；想换端口改左边，或在 .env 里设 PORT
-      - "${PORT:-6868}:8080"
+      - "8080:8080"          # 左侧改成本机想用的端口
+    env_file:
+      - .env
     environment:
-      TZ: Asia/Shanghai
-      PORT: 8080
-      DB_PATH: /data/finance.db
-      SESSION_SECRET: "${SESSION_SECRET:-please-change-this-in-env}"
-      BOOTSTRAP_USER: "${BOOTSTRAP_USER:-admin}"
-      BOOTSTRAP_PASSWORD: "${BOOTSTRAP_PASSWORD:-admin12345}"
-      COOKIE_SECURE: "${COOKIE_SECURE:-0}"
-      # 可选：邮件通知
-      SMTP_HOST: "${SMTP_HOST:-}"
-      SMTP_PORT: "${SMTP_PORT:-465}"
-      SMTP_SECURE: "${SMTP_SECURE:-true}"
-      SMTP_USER: "${SMTP_USER:-}"
-      SMTP_PASS: "${SMTP_PASS:-}"
-      SMTP_TO: "${SMTP_TO:-}"
+      - TZ=Asia/Shanghai     # 影响定时任务的“每天几点”
+      - DB_PATH=/data/data.db
     volumes:
-      # SQLite 数据库、备份都落在宿主机 ./data，删容器不丢数据
-      - ./data:/data
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      - ./data:/data         # 收益率历史与设置持久化
