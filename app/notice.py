@@ -10,11 +10,13 @@
 import io
 import json
 import re
+import ssl
 import time
 from datetime import date, datetime, timedelta
 
 import requests
 from pypdf import PdfReader
+from requests.adapters import HTTPAdapter
 
 BASE = "https://ccb.com/tran/WCCMainPlatV5"
 LIST_PAGE = "https://ccb.com/chn/home/finance/index/cpgg/cpcxqgg/index.shtml"
@@ -33,8 +35,43 @@ class NoticeError(RuntimeError):
     pass
 
 
+_SSL_CTX: ssl.SSLContext | None = None
+
+
+def ssl_context() -> ssl.SSLContext:
+    """建行部分站点在握手时使用 legacy renegotiation，OpenSSL 3 默认拒绝
+    （报 UNSAFE_LEGACY_RENEGOTIATION_DISABLED），这里显式放开。"""
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        ctx = ssl.create_default_context()
+        flag = getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x00040000)
+        try:
+            ctx.options |= flag
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            ctx.set_ciphers("DEFAULT@SECLEVEL=1")
+        except Exception:  # noqa: BLE001
+            pass
+        _SSL_CTX = ctx
+    return _SSL_CTX
+
+
+class _LegacyAdapter(HTTPAdapter):
+    """让 requests 使用上面的自定义 SSLContext。"""
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs["ssl_context"] = ssl_context()
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, *args, **kwargs):
+        kwargs["ssl_context"] = ssl_context()
+        return super().proxy_manager_for(*args, **kwargs)
+
+
 def _session() -> requests.Session:
     s = requests.Session()
+    s.mount("https://", _LegacyAdapter())
     s.headers.update({"User-Agent": UA, "Referer": LIST_PAGE})
     s.get(LIST_PAGE, timeout=20)
     # 先打一次理财公司列表接口，服务端才会下发 tranCCBIBS1 会话
