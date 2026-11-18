@@ -162,3 +162,9 @@ def api_test_mail():
 @app.get("/api/health")
 def api_health():
     return {"ok": True, "products": len(db.list_products()), "time": datetime.now().isoformat()}
+
+
+@app.get("/api/diag")
+def api_diag(q: str = ""):
+    """诊断接口：服务器能否访问建行公告检索、关键词命中情况。"""
+    return JSONResponse(service.diagnose(q))

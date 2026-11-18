@@ -66,11 +66,12 @@ def search_products(keyword: str, days: int = 10) -> list[dict]:
             "Prim_CL_ID": NOTICE_RATE,
         }
         resp = s.get(BASE, params=params, timeout=25)
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise NoticeError(f"检索接口 HTTP {resp.status_code}")
         try:
             data = resp.json()
         except ValueError:
-            break
+            raise NoticeError(f"检索接口返回非 JSON：{resp.text[:120]!r}")
         batch = data.get("PD_Inf_Grp") or []
         if not batch:
             break

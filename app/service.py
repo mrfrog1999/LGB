@@ -72,22 +72,59 @@ def search_products(query: str) -> list[dict]:
     return out
 
 
+def diagnose(keyword: str = "") -> dict:
+    """诊断：能否连上建行检索接口、关键词各能命中多少产品。"""
+    kws = [keyword] if keyword else [settings.SEARCH_KEYWORD, "建信宝"]
+    out: dict = {"keywords": [], "products": []}
+    for kw in kws:
+        try:
+            items = notice.search_products(kw, days=10)
+            out["keywords"].append({
+                "keyword": kw,
+                "count": len(items),
+                "sample": [i["name"] for i in items[:4]],
+            })
+        except Exception as exc:  # noqa: BLE001
+            out["keywords"].append({"keyword": kw, "error": f"{type(exc).__name__}: {exc}"})
+    out["products"] = [
+        {"code": p["code"], "name": p["name"], "rows": db.rate_count(p["code"])}
+        for p in db.list_products(only_subscribed=True)
+    ]
+    return out
+
+
 # ---------------- 抓取 ----------------
 
+def candidate_keywords(name: str) -> list[str]:
+    """按由精确到宽松的顺序给出检索关键词，逐个尝试。"""
+    base = series_keyword(name, "")
+    stripped = re.sub(r"[（(].*?[）)]", "", base).strip()
+    stripped = re.sub(r"(净值型)?产品$", "", stripped).strip() or stripped
+    out: list[str] = []
+    for k in (base, stripped, stripped[:6], settings.SEARCH_KEYWORD):
+        k = (k or "").strip()
+        if k and len(k) >= 3 and k not in out:
+            out.append(k)
+    return out
+
+
 def _token_for(code: str, name: str) -> str | None:
-    keyword = series_keyword(name, code)
-    for attempt in range(settings.FETCH_RETRIES):
-        try:
-            items = notice.search_products(keyword, days=10)
-        except Exception as exc:  # noqa: BLE001
-            db.add_log("warn", f"检索 {keyword} 第{attempt + 1}次失败：{exc}")
-            time.sleep(1.5)
-            continue
-        for it in items:
-            if it["code"] == code:
-                return it["token"]
-        if items:
+    tried: list[str] = []
+    for keyword in candidate_keywords(name):
+        for attempt in range(settings.FETCH_RETRIES):
+            try:
+                items = notice.search_products(keyword, days=10)
+            except Exception as exc:  # noqa: BLE001
+                db.add_log("warn", f"检索「{keyword}」第{attempt + 1}次失败：{exc}")
+                time.sleep(2)
+                continue
+            tried.append(f"{keyword}={len(items)}")
+            hit = [i for i in items if i["code"] == code]
+            if hit:
+                db.add_log("info", f"检索「{keyword}」命中 {len(items)} 个产品，找到 {code}")
+                return hit[0]["token"]
             break
+    db.add_log("warn", f"未检索到 {code}（{name}），各关键词命中数：{', '.join(tried) or '全部请求失败'}")
     return None
 
 
@@ -98,7 +135,7 @@ def sync_product(code: str) -> dict:
 
     token = _token_for(code, p["name"])
     if not token:
-        raise ServiceError(f"未找到 {p['name']} 的最新净值公告")
+        raise ServiceError(f"未找到 {p['name']} 的最新净值公告（可访问 /api/diag 查看检索诊断）")
 
     last_err = None
     for attempt in range(settings.FETCH_RETRIES):
