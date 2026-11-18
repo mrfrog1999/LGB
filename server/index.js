@@ -77,6 +77,24 @@ app.post('/api/auth/register', (req, res) => {
   res.json({ ok: true, user: { id: info.lastInsertRowid, username: u, displayName: name || u } })
 })
 
+// 创建者新增成员（页面「我的 → 成员 → 添加成员」调用）
+app.post('/api/members', requireLogin, (req, res) => {
+  if (!req.user.isOwner) return res.status(403).json({ ok: false, message: '只有创建者可以添加成员' })
+  const { username, password, displayName } = req.body || {}
+  const u = String(username || '').trim()
+  const p = String(password || '')
+  const name = String(displayName || u).trim().slice(0, 20)
+  if (!/^[a-zA-Z0-9_-]{3,24}$/.test(u)) return res.status(400).json({ ok: false, message: '账号需 3-24 位字母/数字/下划线' })
+  if (p.length < 6) return res.status(400).json({ ok: false, message: '密码至少 6 位' })
+  if (db.prepare('SELECT id FROM users WHERE username = ?').get(u)) {
+    return res.status(400).json({ ok: false, message: '该账号已存在' })
+  }
+  const info = db
+    .prepare('INSERT INTO users (username, password_hash, display_name, is_owner, created_at) VALUES (?, ?, ?, 0, ?)')
+    .run(u, auth.hashPassword(p), name || u, new Date().toISOString())
+  res.json({ ok: true, id: info.lastInsertRowid, displayName: name || u })
+})
+
 app.post('/api/auth/logout', (req, res) => {
   auth.clearCookie(res)
   res.json({ ok: true })

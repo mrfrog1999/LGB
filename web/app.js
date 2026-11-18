@@ -136,19 +136,31 @@
         '<div style="font-size:16px;font-weight:600;margin-bottom:8px">' + esc(title) + '</div>' +
         (message ? '<div style="font-size:13px;color:#6b7385;line-height:1.7;white-space:pre-wrap">' + esc(message) + '</div>' : '') +
         (o.input ? '<div class="field" style="margin-top:12px"><label>' + esc(o.input.label || '') + '</label><input id="dlgInput" value="' + esc(o.input.value || '') + '"></div>' : '') +
+        (o.fields ? o.fields.map((f, i) =>
+          '<div class="field" style="margin-top:12px"><label>' + esc(f.label || '') + '</label>' +
+          '<input id="dlgF' + i + '" type="' + esc(f.type || 'text') + '" placeholder="' + esc(f.placeholder || '') + '" value="' + esc(f.value || '') + '"></div>'
+        ).join('') : '') +
         '<div style="display:flex;gap:10px;margin-top:16px">' +
         '<button class="btn ghost" style="flex:1" data-act="cancel">' + esc(o.cancelText) + '</button>' +
         '<button class="btn" style="flex:1' + (o.danger ? ';background:#fa5151' : '') + '" data-act="ok">' + esc(o.confirmText) + '</button>' +
         '</div></div>'
       document.body.appendChild(mask)
       const input = $('dlgInput')
-      if (input) setTimeout(() => input.focus(), 30)
+      const fieldInputs = (o.fields || []).map((f, i) => $('dlgF' + i))
+      const first = input || fieldInputs[0]
+      if (first) setTimeout(() => first.focus(), 30)
       mask.addEventListener('click', ev => {
         const act = ev.target.getAttribute && ev.target.getAttribute('data-act')
         if (!act) return
-        const val = input ? input.value.trim() : null
+        let val = true
+        if (o.fields) {
+          val = {}
+          o.fields.forEach((f, i) => { val[f.key] = (fieldInputs[i] ? fieldInputs[i].value.trim() : '') })
+        } else if (input) {
+          val = input.value.trim()
+        }
         document.body.removeChild(mask)
-        resolve(act === 'ok' ? (input ? val : true) : false)
+        resolve(act === 'ok' ? val : false)
       })
       if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') mask.querySelector('[data-act="ok"]').click() })
     })
@@ -578,6 +590,7 @@
     $('inWebhookUrl').value = S.settings.webhook_url || ''
 
     $('memberTip').textContent = '共 ' + S.members.length + ' 人'
+    $('btnAddMember').style.display = S.user.isOwner ? '' : 'none'
     $('memberList').innerHTML = S.members.map(m => {
       const isMe = m.id === S.user.id
       return '<div class="member-row">' +
@@ -746,6 +759,27 @@
     } catch (e) { dialog('保存失败', e.message, { cancelText: '关闭' }) }
   }
 
+  // ---------------- 添加成员（仅创建者） ----------------
+  async function addMember() {
+    const v = await dialog('添加成员', '新成员会和你共用同一份存单数据，可以增删改。', {
+      fields: [
+        { key: 'username', label: '账号', placeholder: '3-24 位字母 / 数字 / 下划线' },
+        { key: 'displayName', label: '称呼', placeholder: '例如：李娜' },
+        { key: 'password', label: '密码', type: 'password', placeholder: '至少 6 位' }
+      ],
+      confirmText: '创建成员'
+    })
+    if (!v) return
+    if (!v.username || !v.password) return toast('账号和密码不能为空')
+    try {
+      await requ('/members', { method: 'POST', body: v })
+      const me = await requ('/me', { method: 'GET' })
+      S.members = me.members || []
+      renderMine()
+      toast('已添加成员 ' + (v.displayName || v.username))
+    } catch (e) { dialog('添加失败', e.message, { cancelText: '关闭' }) }
+  }
+
   // ---------------- 成员选择（批量修改添加人） ----------------
   function openMemberPick() {
     const ids = Object.keys(S.sel).map(Number)
@@ -795,6 +829,8 @@
     }
     $('btnLogin').addEventListener('click', doLogin)
     $('lgPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
+
+    $('btnAddMember').addEventListener('click', addMember)
 
     // 底部导航
     $('tabbar').addEventListener('click', e => {
