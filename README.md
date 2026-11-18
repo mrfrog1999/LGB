@@ -125,6 +125,7 @@ docker compose -f docker-compose.deploy.yml up -d
 | `BOOTSTRAP_USER` | admin | 首次启动建的管理员账号 |
 | `BOOTSTRAP_PASSWORD` | admin12345 | 同上，登录后请修改 |
 | `COOKIE_SECURE` | 0 | 走 HTTPS 反代时设 `1` |
+| `ALLOW_REGISTER` | 0 | 是否允许页面自助注册。默认 **关闭**，只有置 `1` 才放行 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — | 邮件通知（可留空） |
 | `SMTP_USER` / `SMTP_PASS` / `SMTP_TO` | — | 邮箱账号、密码、收件地址 |
 
@@ -276,6 +277,13 @@ docker compose down             # 停止
 docker compose up -d --build    # 更新代码后重建
 ```
 
+新增成员（注册入口关闭时的方式）：
+
+```bash
+docker compose exec finance-calendar node server/adduser.js zhangsan 张三 123456
+# 本地源码运行：DB_PATH=./data/finance.db node server/adduser.js zhangsan 张三 123456
+```
+
 查看数据库：
 
 ```bash
@@ -310,7 +318,10 @@ docker/
 - 会话是 HMAC 签名的 HttpOnly Cookie，默认 30 天；
 - 所有接口都要登录，未登录返回 401；
 - 容器以 `node` 非 root 用户运行；
-- 建议只在内网 / 反代 HTTPS 后暴露，不要裸奔公网 8080。
+- **页面自助注册默认关闭**：`/api/auth/register` 直接返回 403。因为本版是「一个部署 = 一份共享账本」，
+  若开放注册，任何知道你地址的人注册后都能看到全部存单。
+  需要加人时用 `node server/adduser.js`，或临时设 `ALLOW_REGISTER=1`。
+- 建议只在内网 / 反代 HTTPS 后暴露，不要把端口裸奔在公网。
 
 ## 常见问题
 

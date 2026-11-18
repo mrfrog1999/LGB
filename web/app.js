@@ -751,7 +751,7 @@
     const ids = Object.keys(S.sel).map(Number)
     if (!ids.length) return toast('请先选择存单')
     if (S.members.length < 2) {
-      return dialog('只有一个成员', '当前账本只有你一个人，添加人只能是你。可以让家人注册一个账号后再改。', { cancelText: '知道了' })
+      return dialog('只有一个成员', '当前账本只有你一个人，添加人只能是你。成员注册已关闭，如需新增成员请在服务器上用命令创建。', { cancelText: '知道了' })
     }
     S.pickTarget = ids
     $('memberTitle').textContent = '选择添加人（' + ids.length + ' 笔）'
@@ -785,16 +785,7 @@
 
   // ---------------- 事件绑定 ----------------
   function bindEvents() {
-    // 登录页
-    $('tabLogin').addEventListener('click', () => {
-      $('tabLogin').classList.add('on'); $('tabReg').classList.remove('on')
-      $('loginForm').style.display = ''; $('regForm').style.display = 'none'
-    })
-    $('tabReg').addEventListener('click', () => {
-      $('tabReg').classList.add('on'); $('tabLogin').classList.remove('on')
-      $('regForm').style.display = ''; $('loginForm').style.display = 'none'
-    })
-
+    // 登录页（成员注册已关闭，只保留登录）
     async function doLogin() {
       $('loginErr').textContent = ''
       try {
@@ -804,18 +795,6 @@
     }
     $('btnLogin').addEventListener('click', doLogin)
     $('lgPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
-
-    async function doReg() {
-      $('regErr').textContent = ''
-      try {
-        await requ('/auth/register', {
-          method: 'POST',
-          body: { username: $('rgUser').value.trim(), displayName: $('rgName').value.trim(), password: $('rgPass').value }
-        })
-        await boot()
-      } catch (e) { $('regErr').textContent = e.message }
-    }
-    $('btnReg').addEventListener('click', doReg)
 
     // 底部导航
     $('tabbar').addEventListener('click', e => {

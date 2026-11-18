@@ -53,7 +53,13 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ ok: true, user: { id: row.id, username: row.username, displayName: row.display_name } })
 })
 
+// 成员注册默认关闭（ALLOW_REGISTER=1 才放行），避免陌生人注册后看到整份账本
+const ALLOW_REGISTER = String(process.env.ALLOW_REGISTER || '0') === '1'
+
 app.post('/api/auth/register', (req, res) => {
+  if (!ALLOW_REGISTER) {
+    return res.status(403).json({ ok: false, message: '已关闭成员注册' })
+  }
   const { username, password, displayName } = req.body || {}
   const u = String(username || '').trim()
   const p = String(password || '')
