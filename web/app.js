@@ -246,7 +246,7 @@
     html += '<div class="dep-period">' + esc(d.saveDate) + ' → ' + esc(d.expireDate) + '</div>'
     html += '</div>'
     html += '<span class="status ' + esc(d.status) + '">' + esc(d.statusText) + '</span>'
-    if (d.creatorName) html += '<div class="avatar" title="' + esc(d.creatorName) + '">' + esc(d.creatorInitial) + '</div>'
+    if (d.creatorName) html += '<span class="who">' + esc(d.creatorName) + '</span>'
     html += '</div>'
 
     html += '<div class="metrics">'
@@ -569,7 +569,6 @@
   function renderMine() {
     $('meName').textContent = S.user.displayName
     $('meAccount').textContent = '账号 ' + S.user.username + (S.user.isOwner ? ' · 创建者' : '')
-    $('meAvatar').textContent = (S.user.displayName || '?').slice(0, 1)
 
     $('swRemind').classList.toggle('on', S.settings.remind_enabled === '1')
     $('swPrev').classList.toggle('on', S.settings.remind_prev_day === '1')
@@ -582,7 +581,6 @@
     $('memberList').innerHTML = S.members.map(m => {
       const isMe = m.id === S.user.id
       return '<div class="member-row">' +
-        '<div class="avatar" style="width:34px;height:34px;font-size:13px">' + esc(m.initial) + '</div>' +
         '<div style="flex:1">' +
         '<div class="nm">' + esc(m.displayName) +
         (m.isOwner ? ' <span class="tag owner">创建者</span>' : ' <span class="tag">成员</span>') +
@@ -759,7 +757,6 @@
     $('memberTitle').textContent = '选择添加人（' + ids.length + ' 笔）'
     $('memberPickList').innerHTML = S.members.map(m =>
       '<div class="member-row" data-pick="' + m.id + '" data-name="' + esc(m.displayName) + '" style="cursor:pointer">' +
-      '<div class="avatar" style="width:34px;height:34px;font-size:13px">' + esc(m.initial) + '</div>' +
       '<div style="flex:1"><div class="nm">' + esc(m.displayName) +
       (m.isOwner ? ' <span class="tag owner">创建者</span>' : ' <span class="tag">成员</span>') +
       '</div></div><span style="color:#c2c9d6">›</span></div>'

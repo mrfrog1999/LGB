@@ -47,12 +47,20 @@ function termMonths(startStr, endStr) {
 }
 
 function termLabel(months) {
-  const m = Number(months) || 0
+  let m = Number(months) || 0
   if (!m) return ''
-  if (m < 12) return m + ' 个月'
+  // 存期按「整月 + 零头天数/30」算，会出现 60.0333 这种值，这里抹掉浮点误差
+  m = Math.round(m * 10) / 10
+  if (m < 12) {
+    const mm = Math.max(1, Math.round(m))
+    return mm + ' 个月'
+  }
   const y = Math.floor(m / 12)
-  const r = m % 12
-  return r === 0 ? y + ' 年' : y + ' 年 ' + r + ' 个月'
+  const r = Math.round((m - y * 12) * 10) / 10
+  if (r <= 0.4) return y + ' 年'
+  const rr = Math.round(r)
+  if (rr >= 12) return (y + 1) + ' 年'
+  return y + ' 年 ' + rr + ' 个月'
 }
 
 // 存期标签配色：按年期分档
