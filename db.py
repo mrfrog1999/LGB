@@ -4,8 +4,25 @@ import threading
 from contextlib import contextmanager
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DB_PATH
+import secure
 
 _write_lock = threading.RLock()
+
+# 需要加密存储的敏感设置项（值以密文入库，读取时透明解密）
+_ENCRYPTED_SETTINGS = {"smtp_pass"}
+
+
+def _encode_setting(key, value):
+    """入库编码：敏感项加密。"""
+    s = "" if value is None else str(value)
+    return secure.encrypt(s) if key in _ENCRYPTED_SETTINGS else s
+
+
+def _decode_setting(key, value):
+    """出库解码：敏感项解密。"""
+    if key in _ENCRYPTED_SETTINGS:
+        return secure.decrypt(value)
+    return value
 
 
 def get_conn():
@@ -177,7 +194,13 @@ def init_db():
             "spdb_app_overall_annual": "1.41",    # 浦发 App 持仓七日年化
         }
         for k, v in defaults.items():
-            c.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
+            c.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, _encode_setting(k, v)))
+
+        # 安全迁移：把历史版本以明文入库的敏感项（如 smtp_pass）转为密文
+        for k in _ENCRYPTED_SETTINGS:
+            row = c.execute("SELECT value FROM settings WHERE key=?", (k,)).fetchone()
+            if row and row["value"] and not secure.is_encrypted(row["value"]):
+                c.execute("UPDATE settings SET value=? WHERE key=?", (secure.encrypt(row["value"]), k))
 
         # 默认管理员账号：首次初始化写入（若不存在），密码用 werkzeug 哈希存储
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
@@ -186,24 +209,27 @@ def init_db():
                 ("admin", generate_password_hash("admin123"), "admin", "管理员"),
             )
 
+    # 收紧数据库与密钥文件权限为 600（仅属主可读写），降低同主机其他用户读取风险
+    secure.harden_permissions()
+
 
 # ---------- settings ----------
 def get_settings():
     conn = get_conn()
     rows = conn.execute("SELECT key,value FROM settings").fetchall()
     conn.close()
-    return {r["key"]: r["value"] for r in rows}
+    return {r["key"]: _decode_setting(r["key"], r["value"]) for r in rows}
 
 
 def set_setting(key, value):
     with transaction() as c:
-        c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (str(key), str(value)))
+        c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (str(key), _encode_setting(key, value)))
 
 
 def set_settings(d: dict):
     with transaction() as c:
         for k, v in d.items():
-            c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (str(k), str(v)))
+            c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (str(k), _encode_setting(k, v)))
 
 
 # ---------- products ----------
@@ -522,6 +548,8 @@ def import_all(payload, mode="replace"):
                     if not k:
                         continue
                     v = r.get("value", "")
+                    # 敏感项入库前加密；备份中已是 enc: 密文时 encrypt 会原样返回，不会二次加密
+                    v = _encode_setting(k, v)
                     if k in existing_keys:
                         c.execute('UPDATE settings SET value=? WHERE key=?', (v, k))
                     else:
