@@ -424,19 +424,41 @@ BACKUP_TABLES = [
 BACKUP_VERSION = 2
 
 
-def export_all():
-    """导出全部业务数据为可序列化 dict（含 schema 版本与导出时间）。"""
+# 敏感设置项：发邮箱的备份必须剔除，避免邮箱授权码/收件人等隐私外泄
+SENSITIVE_SETTING_KEYS = {
+    "smtp_host", "smtp_port", "smtp_user", "smtp_pass",
+    "mail_from", "mail_to", "sharecode", "secret_key",
+}
+# 导入恢复时永不覆盖的表（脱敏备份不含这些；即使含也不动现有账号）
+PROTECTED_TABLES = {"users"}
+
+
+def export_all(sanitize=False):
+    """导出全部业务数据为可序列化 dict（含 schema 版本与导出时间）。
+
+    sanitize=True 时生成"隐私安全"备份，专用于发送到邮箱：
+      - 剔除 users 表（账号、密码哈希、昵称等用户信息）
+      - 剔除 settings 中的邮箱/SMTP 等敏感项（授权码、账号、收件人）
+    业务数据（持仓、净值、支出、收益快照、非敏感设置）完整保留，仍可用于恢复。
+    """
     conn = get_conn()
     payload = {
         "format": "lqb-backup",
         "version": BACKUP_VERSION,
         "exported_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "sanitized": bool(sanitize),
         "tables": {},
     }
     try:
         for t in BACKUP_TABLES:
+            if sanitize and t in PROTECTED_TABLES:
+                payload["tables"][t] = []
+                continue
             rows = conn.execute(f'SELECT * FROM "{t}"').fetchall()
-            payload["tables"][t] = [dict(r) for r in rows]
+            data = [dict(r) for r in rows]
+            if sanitize and t == "settings":
+                data = [r for r in data if r.get("key") not in SENSITIVE_SETTING_KEYS]
+            payload["tables"][t] = data
     finally:
         conn.close()
     return payload
@@ -477,17 +499,51 @@ def import_all(payload, mode="replace"):
                     raise ValueError(f"表 {t} 含未知字段：{', '.join(sorted(unknown))}")
 
         stats = {}
+        sanitized = bool(payload.get("sanitized"))
+        # settings 一律用"按键合并"：只覆盖备份中出现的 key，绝不删除现有项。
+        # 这样脱敏备份（不含邮箱配置）恢复后不会抹掉当前 SMTP / 账号配置。
+        setting_rows = tables.get("settings", [])
+        existing_keys = {r[0] for r in c.execute('SELECT key FROM settings').fetchall()}
         if mode == "replace":
-            # 按依赖顺序清空（先子表后主表），保留 settings 结构由备份整体覆盖
+            # 按依赖顺序清空（先子表后主表）；settings 与受保护表不整体清空
             for t in ("profit_snapshots", "capital_additions", "withdrawals",
-                      "holdings", "yields", "products", "settings"):
+                      "holdings", "yields", "products"):
                 c.execute(f'DELETE FROM "{t}"')
-            # users 仅在备份确实带有账号数据时才覆盖，避免旧版备份清空账号导致无法登录
-            if tables.get("users"):
-                c.execute('DELETE FROM "users"')
+            # users 永不删除：脱敏备份不含账号，必须保留现有账号以避免无法登录
+            # （完整备份含 users 时也走下面的按键处理，不整体覆盖）
 
         for t in BACKUP_TABLES:
             rows = tables.get(t, [])
+            # settings 特殊处理：逐 key 更新/插入，不删除
+            if t == "settings":
+                done = 0
+                for r in rows:
+                    k = r.get("key")
+                    if not k:
+                        continue
+                    v = r.get("value", "")
+                    if k in existing_keys:
+                        c.execute('UPDATE settings SET value=? WHERE key=?', (v, k))
+                    else:
+                        c.execute('INSERT INTO settings (key, value) VALUES (?, ?)', (k, v))
+                    done += 1
+                stats[t] = done
+                continue
+            # 受保护表（users）：仅在完整备份且确实带账号时才覆盖（先清后插）
+            if t in PROTECTED_TABLES:
+                if not rows:
+                    stats[t] = 0
+                    continue
+                c.execute(f'DELETE FROM "{t}"')
+                cols = list(rows[0].keys())
+                col_sql = ",".join(f'"{x}"' for x in cols)
+                ph = ",".join("?" for _ in cols)
+                c.executemany(
+                    f'INSERT INTO "{t}" ({col_sql}) VALUES ({ph})',
+                    [tuple(r.get(x) for x in cols) for r in rows],
+                )
+                stats[t] = len(rows)
+                continue
             if not rows:
                 stats[t] = 0
                 continue

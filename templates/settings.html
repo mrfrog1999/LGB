@@ -263,8 +263,33 @@
         <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-import"/></svg> 导入恢复</button>
         <input type="file" id="importFile" accept=".json,application/json" style="display:none;" onchange="onImportFile(this)">
       </div>
+      <div class="form-sep"></div>
+      <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:8px;">📧 每日自动备份到邮箱</div>
+      <div class="form-row">
+        <label>自动备份开关</label>
+        <select id="s-backup-enabled">
+          <option value="1" {% if settings.backup_enabled=='1' %}selected{% endif %}>开启（每天定时把备份文件发到邮箱）</option>
+          <option value="0" {% if settings.get('backup_enabled','0')!='1' %}selected{% endif %}>关闭（不自动发送）</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-row">
+          <label>发送时间 · 时</label>
+          <input type="number" id="s-backup-hour" min="0" max="23" value="{{ settings.get('backup_hour','16') }}">
+        </div>
+        <div class="form-row">
+          <label>发送时间 · 分</label>
+          <input type="number" id="s-backup-minute" min="0" max="59" value="{{ settings.get('backup_minute','0') }}">
+        </div>
+      </div>
+      <div class="hint" style="color:#16a34a;">🔒 发到邮箱的备份<b>已自动脱敏</b>：不含邮箱账号/授权码、用户账号等隐私，仅含持仓、净值、收益等业务数据。默认每天 16:00 发送，需先配置好 SMTP 并测试成功。</div>
+      {% if settings.last_backup_date %}<div class="hint" style="color:#16a34a;">上次自动备份：{{ settings.last_backup_date }}</div>{% endif %}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn btn-primary" onclick="saveSettings()">保存备份设置</button>
+        <button class="btn btn-ghost" onclick="sendBackupNow()">立即发送测试</button>
+      </div>
       <div class="hint" style="margin-top:12px;">
-        备份文件包含邮箱授权码等敏感信息，请妥善保管；导入会<b>覆盖</b>当前全部数据，操作前建议先导出一份现有备份。
+        「导出备份」是<b>本地完整备份</b>（含邮箱配置与账号，用于灾难恢复），请妥善保管；导入会覆盖业务数据、但保留现有账号与邮箱配置。<b>发到邮箱的自动备份不含这些敏感信息</b>。
       </div>
     </div>
   {% endif %}
@@ -525,6 +550,14 @@ async function exportData(){
     toast('备份已下载');
   }catch(e){toast('导出失败：'+e.message,false);}
 }
+async function sendBackupNow(){
+  if(!confirm('确定立即导出一份数据备份并发送到「收件邮箱」吗？'))return;
+  try{
+    toast('正在生成并发送备份…');
+    const res=await api('/api/backup/send-now',{method:'POST',body:'{}'});
+    toast(res.ok?(res.message||'备份邮件已发送'):(res.error||'发送失败'),res.ok);
+  }catch(e){toast('发送失败：'+e.message,false);}
+}
 let _pendingImport=null;
 function onImportFile(input){
   const file=input.files&&input.files[0];
@@ -587,6 +620,9 @@ async function saveSettings(){
     push_enabled:document.getElementById('s-enabled').value,
     push_hour:document.getElementById('s-hour').value.trim(),
     push_minute:document.getElementById('s-minute').value.trim(),
+    backup_enabled:document.getElementById('s-backup-enabled').value,
+    backup_hour:document.getElementById('s-backup-hour').value.trim(),
+    backup_minute:document.getElementById('s-backup-minute').value.trim(),
     alert_enabled:document.getElementById('s-alert-enabled').value,
     alert_annual:document.getElementById('s-alert-annual').value.trim(),
     historical_profit:document.getElementById('s-hist-profit').value.trim(),

@@ -62,6 +62,16 @@
   .rate-card-avatar.bank-logo{background:#fff;padding:5px;box-shadow:inset 0 0 0 1px #e5eaf2}
   .rate-card-avatar.bank-logo .logo-svg{width:100%;height:100%;display:block}
   .rate-card-avatar.bank-logo .logo-svg.spdb{width:100%;height:auto;align-self:center}
+  /* 产品列表银行标签：彩色银行 logo 小图标 */
+  .bank-logo-tag{width:23px;height:23px;border-radius:6px;display:inline-flex;align-items:center;
+    justify-content:center;background:#fff;padding:3px;box-shadow:inset 0 0 0 1px var(--border);
+    vertical-align:middle;flex:0 0 auto}
+  .bank-logo-tag svg{width:100%;height:100%;display:block}
+  .bank-logo-tag.spdb svg{height:auto}
+  /* 银行切换标签内的 logo */
+  .tab-logo{width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;
+    vertical-align:-3px;margin-right:5px;flex:0 0 auto}
+  .tab-logo svg{width:100%;height:100%;display:block}
   .rate-card-title{font-size:15px;font-weight:750;line-height:1.2}
   .rate-card-sub{font-size:11px;color:var(--muted);margin-top:2px}
   .rate-card-main{position:relative;z-index:1;margin-bottom:15px}
@@ -339,9 +349,9 @@
 <!-- 持仓列表：银行筛选标签 -->
 <div class="bank-tabs" id="holdBankTabs" style="margin-bottom:14px;">
   <button class="bank-tab active" data-bank="all" onclick="filterHoldings('all')">全部 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|length }}</span></button>
-  <button class="bank-tab" data-bank="ccb" onclick="filterHoldings('ccb')">建行 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','ccb')|list|length }}</span></button>
-  <button class="bank-tab" data-bank="psbc" onclick="filterHoldings('psbc')">邮储 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','psbc')|list|length }}</span></button>
-  <button class="bank-tab" data-bank="spdb" onclick="filterHoldings('spdb')">浦发 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','spdb')|list|length }}</span></button>
+  <button class="bank-tab" data-bank="ccb" onclick="filterHoldings('ccb')"><span class="tab-logo"><svg><use href="#logo-ccb"/></svg></span>建行 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','ccb')|list|length }}</span></button>
+  <button class="bank-tab" data-bank="psbc" onclick="filterHoldings('psbc')"><span class="tab-logo"><svg><use href="#logo-psbc"/></svg></span>邮储 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','psbc')|list|length }}</span></button>
+  <button class="bank-tab" data-bank="spdb" onclick="filterHoldings('spdb')"><span class="tab-logo spdb"><svg><use href="#logo-spdb"/></svg></span>浦发 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','spdb')|list|length }}</span></button>
 </div>
 <div id="holdFilterEmpty" class="card" style="display:none;text-align:center;padding:36px 20px;color:var(--muted);margin-bottom:16px;">
   <div class="ico" style="justify-content:center;margin-bottom:8px;"><svg class="ic" style="width:34px;height:34px;stroke-width:1.5"><use href="#i-folder"/></svg></div>
@@ -368,10 +378,9 @@
       {% for h in data.holdings %}
       <tr style="border-top:1px solid var(--border);" id="row-{{ h.id }}" data-bank="{{ h.bank }}">
         <td style="padding:14px 20px;">
-          <b>{{ h.product_name }}</b>
-          <span class="badge badge-{{ h.bank }}">
-            {% if h.bank=='psbc' %}邮储{% elif h.bank=='spdb' %}浦发{% else %}建行{% endif %}
-          </span>
+          <span class="bank-logo-tag {% if h.bank=='spdb' %}spdb{% endif %}" style="margin-right:7px" title="{% if h.bank=='psbc' %}邮储银行{% elif h.bank=='spdb' %}浦发银行{% else %}建设银行{% endif %}">
+            <svg><use href="#logo-{{ h.bank }}"/></svg>
+          </span><b>{{ h.product_name }}</b>
           {% if h.status=='pending' %}
           <span class="badge badge-pending" title="{{ h.settle_date }} 入账">{{ h.settle_date }} 入账</span>
           {% elif h.status=='settled' %}
@@ -423,10 +432,9 @@
   {% for h in data.holdings %}
   <div class="hcard" id="card-{{ h.id }}" data-bank="{{ h.bank }}">
     <div class="hcard-name">
-      {{ h.product_name }}
-      <span class="badge badge-{{ h.bank }}">
-        {% if h.bank=='psbc' %}邮储{% elif h.bank=='spdb' %}浦发{% else %}建行{% endif %}
-      </span>
+      <span class="bank-logo-tag {% if h.bank=='spdb' %}spdb{% endif %}" style="margin-right:7px" title="{% if h.bank=='psbc' %}邮储银行{% elif h.bank=='spdb' %}浦发银行{% else %}建设银行{% endif %}">
+        <svg><use href="#logo-{{ h.bank }}"/></svg>
+      </span>{{ h.product_name }}
       {% if h.status=='pending' %}
       <span class="badge badge-pending">{{ h.settle_date }} 入账</span>
       {% elif h.status=='settled' %}
@@ -518,9 +526,9 @@
     </div>
     <div class="modal-body">
       <div class="bank-tabs" id="expBankTabs">
-        <button class="bank-tab active" data-bank="ccb" onclick="setExpenseBank('ccb')">建行</button>
-        <button class="bank-tab" data-bank="psbc" onclick="setExpenseBank('psbc')">邮储</button>
-        <button class="bank-tab" data-bank="spdb" onclick="setExpenseBank('spdb')">浦发</button>
+        <button class="bank-tab active" data-bank="ccb" onclick="setExpenseBank('ccb')"><span class="tab-logo"><svg><use href="#logo-ccb"/></svg></span>建行</button>
+        <button class="bank-tab" data-bank="psbc" onclick="setExpenseBank('psbc')"><span class="tab-logo"><svg><use href="#logo-psbc"/></svg></span>邮储</button>
+        <button class="bank-tab" data-bank="spdb" onclick="setExpenseBank('spdb')"><span class="tab-logo spdb"><svg><use href="#logo-spdb"/></svg></span>浦发</button>
       </div>
 
       <div class="form-row" id="expHoldingRow" style="display:none;">
@@ -600,9 +608,9 @@
         <button class="bank-tab" data-mode="import" onclick="switchMode('import')"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-import"/></svg> 历史导入（已持有）</button>
       </div>
       <div class="bank-tabs" id="bankTabs">
-        <button class="bank-tab active" data-bank="ccb" onclick="switchBank('ccb')">建行 · 建信理财</button>
-        <button class="bank-tab" data-bank="psbc" onclick="switchBank('psbc')">邮储 · 邮银财富</button>
-        <button class="bank-tab" data-bank="spdb" onclick="switchBank('spdb')">浦发 · 浦银理财</button>
+        <button class="bank-tab active" data-bank="ccb" onclick="switchBank('ccb')"><span class="tab-logo"><svg><use href="#logo-ccb"/></svg></span>建行 · 建信理财</button>
+        <button class="bank-tab" data-bank="psbc" onclick="switchBank('psbc')"><span class="tab-logo"><svg><use href="#logo-psbc"/></svg></span>邮储 · 邮银财富</button>
+        <button class="bank-tab" data-bank="spdb" onclick="switchBank('spdb')"><span class="tab-logo spdb"><svg><use href="#logo-spdb"/></svg></span>浦发 · 浦银理财</button>
       </div>
 
       <div class="form-row" style="position:relative;margin-bottom:10px;">
@@ -1136,7 +1144,7 @@ function openWithdrawModal(hid){
   withdrawHolding=h;
   const bankLabel=BANK_LABEL[h.bank]||'';
   document.getElementById('w-product').innerHTML=
-    escapeHtml(h.name)+' <span class="badge badge-'+h.bank+'" style="margin-left:6px">'+bankLabel+'</span>';
+    escapeHtml(h.name)+' <span class="bank-logo-tag'+(h.bank==='spdb'?' spdb':'')+'" style="margin-left:6px" title="'+bankLabel+'"><svg><use href="#logo-'+h.bank+'"/></svg></span>';
   document.getElementById('w-amount').value='';
   document.getElementById('w-note').value='';
   document.getElementById('w-date').value=todayStr();

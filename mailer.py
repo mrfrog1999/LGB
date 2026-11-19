@@ -3,9 +3,12 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from email.header import Header
 from email.utils import formataddr, parseaddr, getaddresses
 from datetime import datetime
+import json
 
 import db
 
@@ -236,8 +239,10 @@ def build_report_page(data, update_details=None):
 </head><body>{body}</body></html>"""
 
 
-def _smtp_send(subject, html, override_to=None):
-    """统一的 SMTP 发送。返回 (是否成功, 消息)。"""
+def _smtp_send(subject, html, override_to=None, attachments=None):
+    """统一的 SMTP 发送。返回 (是否成功, 消息)。
+    attachments: 可选，[(文件名, bytes)] 列表，用于携带备份文件等附件。
+    """
     s = db.get_settings()
     host = s.get("smtp_host", "smtp.qq.com")
     port = int(s.get("smtp_port", "465") or 465)
@@ -260,11 +265,27 @@ def _smtp_send(subject, html, override_to=None):
     to_header = ", ".join(formataddr((n, a)) for n, a in to_pairs)
     to_addrs = [a for _, a in to_pairs]
 
-    msg = MIMEMultipart("alternative")
+    # 有附件时用 mixed 容器（正文仍是 alternative 子部分），无附件时保持原结构
+    if attachments:
+        msg = MIMEMultipart("mixed")
+        body = MIMEMultipart("alternative")
+        body.attach(MIMEText(html, "html", "utf-8"))
+        msg.attach(body)
+        for filename, content in attachments:
+            part = MIMEBase("application", "octet-stream")
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+            part.set_payload(content)
+            encoders.encode_base64(part)
+            # 文件名用 RFC2231 编码，保证中文名在邮件客户端正常显示
+            part.add_header("Content-Disposition", "attachment", filename=("utf-8", "", filename))
+            msg.attach(part)
+    else:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(html, "html", "utf-8"))
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = from_header
     msg["To"] = to_header
-    msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
         if port == 465:
@@ -351,6 +372,54 @@ def send_alert(data, low, threshold, override_to=None):
     today = datetime.now().strftime("%Y-%m-%d")
     html = build_alert_html(data, low, threshold)
     return _smtp_send(f"⚠️ 年化预警：{len(low)} 只产品低于 {threshold:.2f}%（{today}）", html, override_to)
+
+
+def send_backup(payload, override_to=None, test=False):
+    """把数据备份作为附件发送到邮箱。返回 (是否成功, 消息)。
+
+    payload: db.export_all() 返回的备份数据字典。
+    test: True 时主题标注【测试】，用于设置页的"立即发送"验证。
+    """
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    stamp = now.strftime("%Y%m%d_%H%M")
+    filename = f"理财监控备份_{stamp}.json"
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    tag = "【测试】" if test else ""
+    subject = f"{tag}现金理财监控数据备份（{today}）"
+
+    tables = payload.get("tables", {}) if isinstance(payload, dict) else {}
+    parts = []
+    for key, label in (("holdings", "持仓"), ("yields", "净值"), ("withdrawals", "支出"),
+                       ("products", "产品"), ("users", "用户")):
+        rows = tables.get(key)
+        if isinstance(rows, list):
+            parts.append(f"{label} {len(rows)} 条")
+    stat = " · ".join(parts) if parts else "完整数据"
+    exported = payload.get("exported_at", today) if isinstance(payload, dict) else today
+
+    html = f"""<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      max-width:560px;margin:0 auto;color:#1e293b;line-height:1.7;">
+      <div style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-radius:14px;
+        padding:22px 24px;margin-bottom:18px;">
+        <div style="font-size:19px;font-weight:750;">💾 现金理财监控 · 自动备份</div>
+        <div style="font-size:12.5px;opacity:.9;margin-top:5px;">{today} · 数据文件已附在邮件中</div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;font-size:13.5px;">
+        <div style="margin-bottom:8px;">你好，这是系统按计划自动导出的<b>数据备份</b>，请查收附件：</div>
+        <div style="background:#fff;border:1px dashed #cbd5e1;border-radius:9px;padding:12px 14px;margin:10px 0;">
+          <div style="font-weight:700;color:#dc2626;">📎 {filename}</div>
+          <div style="color:#64748b;font-size:12px;margin-top:4px;">{stat} · 备份时间 {exported}</div>
+        </div>
+        <div style="color:#16a34a;font-size:12px;margin-top:12px;">
+          ✅ 本备份已自动剔除邮箱账号/授权码、用户账号等敏感信息，仅含持仓、净值、收益等业务数据，可安全留存。
+        </div>
+      </div>
+      <div style="text-align:center;color:#94a3b8;font-size:11px;margin-top:16px;">
+        此邮件由现金理财监控系统自动发送 · {tag or '每日定时备份'}
+      </div>
+    </div>"""
+    return _smtp_send(subject, html, override_to, attachments=[(filename, content)])
 
 
 def test_connection():

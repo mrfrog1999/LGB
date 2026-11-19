@@ -117,10 +117,30 @@ def afternoon_fetch_job():
         logger.error(f"下午抓取任务异常: {e}")
 
 
+def backup_job():
+    """每日定时：导出全部数据备份并发送到邮箱。受 backup_enabled 开关控制。"""
+    settings = db.get_settings()
+    if settings.get("backup_enabled", "0") != "1":
+        logger.info("自动备份已关闭，跳过")
+        return
+    logger.info("=== 执行每日自动备份任务 ===")
+    try:
+        # 发邮箱的备份必须脱敏：不含邮箱配置与用户信息
+        payload = db.export_all(sanitize=True)
+        success, msg = mailer.send_backup(payload)
+        logger.info(f"自动备份邮件: {msg}")
+        if success:
+            db.set_setting("last_backup_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    except Exception as e:
+        logger.error(f"自动备份任务异常: {e}")
+
+
 def setup_scheduler():
     s = db.get_settings()
     hour = int(s.get("push_hour") or config.DEFAULT_PUSH_HOUR)
     minute = int(s.get("push_minute") or config.DEFAULT_PUSH_MINUTE)
+    backup_hour = int(s.get("backup_hour") or config.DEFAULT_BACKUP_HOUR)
+    backup_minute = int(s.get("backup_minute") or config.DEFAULT_BACKUP_MINUTE)
     scheduler.remove_all_jobs()
     # 主任务：每天指定时间更新数据 + 邮件推送
     scheduler.add_job(scheduled_job, "cron", hour=hour, minute=minute, id="daily_push", replace_existing=True)
@@ -130,9 +150,16 @@ def setup_scheduler():
         hour=config.SECOND_FETCH_HOUR, minute=config.SECOND_FETCH_MINUTE,
         id="afternoon_fetch", replace_existing=True,
     )
+    # 备份任务：每天指定时间导出数据并发送到邮箱（开关在任务内部判断）
+    scheduler.add_job(
+        backup_job, "cron",
+        hour=backup_hour, minute=backup_minute,
+        id="daily_backup", replace_existing=True,
+    )
     logger.info(
         f"定时任务已设置: 主任务每天 {hour:02d}:{minute:02d}，"
-        f"下午抓取每天 {config.SECOND_FETCH_HOUR:02d}:{config.SECOND_FETCH_MINUTE:02d}"
+        f"下午抓取每天 {config.SECOND_FETCH_HOUR:02d}:{config.SECOND_FETCH_MINUTE:02d}，"
+        f"自动备份每天 {backup_hour:02d}:{backup_minute:02d}"
     )
 
 
@@ -609,6 +636,7 @@ def api_save_settings():
     body = request.get_json(silent=True) or {}
     allowed = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "mail_from",
                "mail_to", "push_enabled", "push_hour", "push_minute",
+               "backup_enabled", "backup_hour", "backup_minute",
                "alert_enabled", "alert_annual",
                "historical_profit", "psbc_historical_profit", "spdb_historical_profit",
                "app_yesterday_profit", "app_overall_annual", "app_ref_date",
@@ -684,6 +712,22 @@ def api_data_export():
     except Exception as e:
         logger.exception("导出数据失败")
         return jsonify({"ok": False, "error": f"导出失败：{e}"}), 500
+
+
+@app.route("/api/backup/send-now", methods=["POST"])
+def api_backup_send_now():
+    """立即导出数据备份并发送到邮箱（设置页测试用），不改变定时开关。"""
+    body = request.get_json(silent=True) or {}
+    to = (body.get("to") or "").strip() or None
+    try:
+        # 发邮箱的备份必须脱敏：不含邮箱配置与用户信息
+        payload = db.export_all(sanitize=True)
+        ok, msg = mailer.send_backup(payload, override_to=to, test=True)
+        return jsonify({"ok": ok, "message": "备份邮件已发送" if ok else f"发送失败：{msg}",
+                        "error": None if ok else msg})
+    except Exception as e:
+        logger.exception("立即发送备份失败")
+        return jsonify({"ok": False, "error": f"发送失败：{e}"}), 500
 
 
 @app.route("/api/data/import", methods=["POST"])

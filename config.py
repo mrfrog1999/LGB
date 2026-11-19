@@ -2,7 +2,7 @@
 import os
 
 # 应用版本号：唯一来源，由 bump_version.py 在每次推送 GitHub 前自动递增
-APP_VERSION = "v1.0.1"
+APP_VERSION = "v1.0.2"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
@@ -43,6 +43,10 @@ DEFAULT_PUSH_MINUTE = int(os.environ.get("PUSH_MINUTE", "0"))
 # 下午补充抓取时间（仅更新数据，不发邮件）
 SECOND_FETCH_HOUR = int(os.environ.get("SECOND_FETCH_HOUR", "14"))
 SECOND_FETCH_MINUTE = int(os.environ.get("SECOND_FETCH_MINUTE", "0"))
+
+# 每日自动备份并发送邮箱（默认下午 16:00，默认关闭，由用户在设置页开启）
+DEFAULT_BACKUP_HOUR = int(os.environ.get("BACKUP_HOUR", "16"))
+DEFAULT_BACKUP_MINUTE = int(os.environ.get("BACKUP_MINUTE", "0"))
 
 # 年化预警：某只产品七日年化低于该值（%）时发邮件提醒
 DEFAULT_ALERT_ANNUAL = float(os.environ.get("ALERT_ANNUAL", "1.0"))
