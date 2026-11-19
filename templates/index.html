@@ -10,6 +10,16 @@
   .top-actions .btn{flex:1 1 0;min-width:0;justify-content:center}
   .top-actions .btn-ghost{background:#fff;border:1.5px solid var(--border);color:#475569}
   .top-actions .btn-ghost:hover{background:#f8fafc;border-color:#cfd8e6;color:var(--brand)}
+  /* 立即更新按钮：图标 + 主文字 + 更新时间，三元素精致排版 */
+  #btn-refresh{gap:10px;padding:9px 14px}
+  .rf-ico{width:30px;height:30px;flex:0 0 auto;border-radius:9px;display:flex;align-items:center;
+    justify-content:center;background:#fef2f2;color:var(--brand)}
+  .rf-ico .ic{width:16px;height:16px}
+  #btn-refresh.loading .rf-ico .ic{animation:rf-spin .9s linear infinite}
+  @keyframes rf-spin{to{transform:rotate(360deg)}}
+  .rf-body{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+  .rf-title{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.1;white-space:nowrap}
+  .rf-time{font-size:10.5px;font-weight:500;color:var(--muted);line-height:1.1;white-space:nowrap}
   @media (min-width:901px){
     .top-actions{flex-direction:row !important;max-width:100% !important}
     .top-actions > div{flex:1;display:flex;gap:10px}
@@ -181,7 +191,13 @@
     {% endif %}
     {% if is_admin %}
     <div style="display:flex;gap:10px;">
-      <button class="btn btn-ghost" id="btn-refresh" onclick="refreshAll()"><svg class="ic"><use href="#i-refresh"/></svg>立即更新数据</button>
+      <button class="btn btn-ghost" id="btn-refresh" onclick="refreshAll()" title="{% if last_fetch_time %}最近一次抓取（手动或自动）：{{ last_fetch_time }}{% else %}尚无抓取记录{% endif %}">
+        <span class="rf-ico"><svg class="ic"><use href="#i-refresh"/></svg></span>
+        <span class="rf-body">
+          <span class="rf-title" id="btn-refresh-label">立即更新</span>
+          <span class="rf-time">{% if last_fetch_time %}{{ last_fetch_time[5:16] }}{% else %}暂无记录{% endif %}</span>
+        </span>
+      </button>
       <button class="btn btn-ghost" onclick="window.open('/api/report/preview?sharecode='+encodeURIComponent((new URLSearchParams(location.search).get('sharecode'))||'{{ sharecode_fallback }}'),'_blank')"><svg class="ic"><use href="#i-file-text"/></svg>预览报告</button>
     </div>
     {% else %}
@@ -1181,9 +1197,10 @@ async function delWithdrawal(id){
 
 async function refreshAll(){
   const btn=document.getElementById('btn-refresh');
-  btn.disabled=true;btn.textContent='更新中...';
+  const label=document.getElementById('btn-refresh-label');
+  btn.disabled=true;btn.classList.add('loading');label.textContent='更新中…';
   const res=await api('/api/refresh',{method:'POST'});
-  btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-refresh"/></svg> 立即更新数据';
+  btn.disabled=false;btn.classList.remove('loading');label.textContent='立即更新';
   if(res.ok){toast('数据已更新');setTimeout(()=>location.reload(),400);}
   else{toast('部分更新失败：'+JSON.stringify(res.fails),false);}
 }

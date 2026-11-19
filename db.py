@@ -363,6 +363,16 @@ def delete_withdrawal(wid):
 
 
 # ---------- yields ----------
+def get_last_fetch_time():
+    """返回数据库中最新的净值抓取时间（yields.fetched_at），无数据时返回空串。"""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT MAX(fetched_at) AS t FROM yields").fetchone()
+        return (row["t"] or "") if row else ""
+    finally:
+        conn.close()
+
+
 def save_yields(product_code, records, pub_date=None):
     """records: [{nav_date, annual_rate, per_10k}]"""
     n = 0

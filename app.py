@@ -193,6 +193,7 @@ def index():
     return render_template("index.html", data=data, settings=s,
                            product_count=product_count,
                            last_push=s.get("last_push_date", ""),
+                           last_fetch_time=db.get_last_fetch_time(),
                            data_sources=data_sources(),
                            alert_enabled=s.get("alert_enabled", "1") == "1",
                            alert_annual=alert_threshold,
