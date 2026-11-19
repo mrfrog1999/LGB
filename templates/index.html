@@ -1,0 +1,1259 @@
+{% extends "base.html" %}
+{% block title %}现金理财监控 · 总览{% endblock %}
+{% block head %}
+<style>
+  /* ===== 顶部操作栏 ===== */
+  .btn-expense{background:#fff5f4;color:#e0392b;border:1.5px solid #fad9d5}
+  .btn-expense:hover{background:#ffe9e6;border-color:#f3b8b0;transform:translateY(-1px)}
+  .btn-import{background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe}
+  .btn-import:hover{background:#ede9fe;border-color:#c4b5fd;transform:translateY(-1px)}
+  .top-actions .btn{flex:1 1 0;min-width:0;justify-content:center}
+  .top-actions .btn-ghost{background:#fff;border:1.5px solid var(--border);color:#475569}
+  .top-actions .btn-ghost:hover{background:#f8fafc;border-color:#cfd8e6;color:var(--brand)}
+  @media (min-width:901px){
+    .top-actions{flex-direction:row !important;max-width:100% !important}
+    .top-actions > div{flex:1;display:flex;gap:10px}
+    .top-actions > div .btn{flex:1}
+  }
+  /* ===== 汇总卡 ===== */
+  .summary-grid > .card{position:relative;overflow:hidden}
+  .stat-top{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .stat-ico{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;font-size:15px;background:#eef2ff;color:var(--brand);flex:0 0 auto}
+  .stat-label{font-size:12.5px;color:var(--muted);font-weight:600}
+  .stat-num{font-size:27px;font-weight:750;letter-spacing:-.8px;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .stat-sub{font-size:11px;margin-top:7px;color:var(--muted)}
+  .stat-card.hero{background:linear-gradient(135deg,#4f46e5 0%,#4338ca 55%,#3730a3 100%);border:none;
+    box-shadow:0 8px 24px rgba(79,70,229,.28)}
+  .stat-card.hero::before{content:'';position:absolute;width:160px;height:160px;right:-50px;top:-60px;
+    border-radius:50%;background:rgba(255,255,255,.08)}
+  .stat-card.hero .stat-ico{background:rgba(255,255,255,.18);color:#fff}
+  .stat-card.hero .stat-label,.stat-card.hero .stat-sub{color:#c7d2fe}
+  .stat-card.hero .stat-num{color:#fff}
+  .card:hover{box-shadow:var(--shadow-hover)}
+  /* ===== 分银行小计 ===== */
+  .bank-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+  .bank-mini-item{display:flex;gap:11px;padding:2px 16px;border-right:1px solid var(--border)}
+  .bank-mini-item:first-child{padding-left:0}
+  .bank-mini-item:last-child{border-right:none;padding-right:0}
+  .bank-dot{width:9px;height:9px;border-radius:3px;margin-top:5px;flex:0 0 auto}
+  .bank-dot.ccb{background:#2563eb} .bank-dot.psbc{background:#16a34a} .bank-dot.spdb{background:#7c3aed}
+  /* ===== App 参考基准 ===== */
+  .app-ref-row{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;font-size:12.5px;padding:11px 0}
+  .app-ref-row + .app-ref-row{border-top:1px dashed var(--border)}
+  .app-ref-name{display:inline-flex;align-items:center;gap:7px;font-weight:700;min-width:190px}
+  .app-ref-avatar{width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;
+    justify-content:center;font-size:13px;color:#fff;flex:0 0 auto}
+  .app-ref-item{color:var(--muted)}
+  .app-ref-item b{color:var(--text);font-weight:700}
+  .app-ref-item b.pos{color:var(--up)}
+  /* ===== 官网抓取年化 3 卡片 ===== */
+  .rate-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .rate-card{position:relative;background:#fff;border:1px solid var(--border);border-radius:18px;
+    padding:19px 20px 17px;box-shadow:var(--shadow);overflow:hidden;transition:transform .18s,box-shadow .18s}
+  .rate-card:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
+  .rate-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--bank)}
+  .rate-card::after{content:'';position:absolute;width:130px;height:130px;right:-45px;top:-55px;
+    border-radius:50%;background:var(--bank);opacity:.06}
+  .rate-card-head{display:flex;align-items:center;gap:11px;margin-bottom:16px;position:relative;z-index:1}
+  .rate-card-avatar{width:38px;height:38px;border-radius:11px;display:inline-flex;align-items:center;
+    justify-content:center;font-size:17px;font-weight:800;color:#fff;flex:0 0 auto;background:var(--bank)}
+  .rate-card-avatar.bank-logo{background:#fff;padding:5px;box-shadow:inset 0 0 0 1px #e5eaf2}
+  .rate-card-avatar.bank-logo .logo-svg{width:100%;height:100%;display:block}
+  .rate-card-avatar.bank-logo .logo-svg.spdb{width:100%;height:auto;align-self:center}
+  .rate-card-title{font-size:15px;font-weight:750;line-height:1.2}
+  .rate-card-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .rate-card-main{position:relative;z-index:1;margin-bottom:15px}
+  .rate-card-label{font-size:11.5px;color:var(--muted);font-weight:600}
+  .rate-card-num{font-size:38px;font-weight:800;letter-spacing:-1.5px;line-height:1.15;margin-top:3px;
+    color:var(--bank);font-variant-numeric:tabular-nums}
+  .rate-card-num .pct{font-size:18px;font-weight:700;margin-left:2px;letter-spacing:0}
+  .rate-card-tag{display:inline-block;font-size:10.5px;color:var(--muted);background:#f5f7fa;
+    border:1px solid var(--border);border-radius:6px;padding:3px 8px;margin-top:7px}
+  .rate-card-foot{position:relative;z-index:1;padding-top:13px;border-top:1px dashed var(--border)}
+  .rate-card-metrics{display:grid;grid-template-columns:1fr 1fr;gap:11px 10px}
+  .rate-card-metrics .metric{min-width:0}
+  .rate-card-metrics .metric span{display:block;font-size:10.5px;color:var(--muted)}
+  .rate-card-metrics .metric b{display:block;font-size:15px;color:var(--text);margin-top:2px;
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rate-card-metrics .metric b.value{font-size:16px;font-weight:750}
+  .rate-card-pending{font-size:11px;margin-top:11px;color:#b45309}
+  .rate-card-empty{width:100%;text-align:center;font-size:12px;color:var(--muted)}
+  /* ===== 表格 ===== */
+  .modern-table{width:100%;border-collapse:collapse;min-width:820px}
+  .modern-table thead th{background:#f8fafc;color:#64748b;font-size:12px;font-weight:700;
+    letter-spacing:.3px;text-align:left;padding:14px 16px;white-space:nowrap}
+  .modern-table tbody td{padding:14px 16px;border-top:1px solid #f0f3f8;font-size:13px}
+  .modern-table tbody tr{transition:background .15s}
+  .modern-table tbody tr:hover{background:#f9fafc}
+  .row-btn{padding:6px 10px!important;font-size:12px!important;min-height:0!important}
+  /* ===== 空状态 ===== */
+  .empty-state{padding:52px 20px;text-align:center;color:var(--muted)}
+  .empty-state .ico{font-size:40px;opacity:.6;margin-bottom:10px}
+  .empty-state b{display:block;color:var(--text);font-size:15px;margin-bottom:5px}
+  /* ===== 数据来源 ===== */
+  .src-item{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;padding:9px 0}
+  .src-item + .src-item{border-top:1px solid #f2f4f8}
+  /* ===== 移动端持仓卡片 ===== */
+  .holding-cards{display:none}
+  .hcard{background:#fff;border:1px solid var(--border);border-radius:16px;
+    box-shadow:var(--shadow);padding:16px;margin-bottom:12px;transition:.2s}
+  .hcard:hover{box-shadow:var(--shadow-hover)}
+  .hcard-name{font-size:15px;font-weight:700;line-height:1.5}
+  .hcard-main{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:14px}
+  .hcard-main .val{font-size:23px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums}
+  .hcard-meta{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+  .hcard-actions{display:flex;gap:8px;margin-top:14px;padding-top:13px;border-top:1px dashed var(--border)}
+  .hcard-actions .btn{flex:1;justify-content:center;min-height:38px;font-size:13px;padding:8px 6px}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  @media (max-width:900px){
+    .holding-cards{display:block}
+    .holding-table-wrap{display:none}
+    .summary-grid > :nth-child(3){grid-column:1 / -1}
+    .summary-grid > .card{padding:18px !important}
+    .bank-mini{grid-template-columns:1fr;gap:0}
+    .bank-mini-item{border-right:none;border-bottom:1px dashed var(--border);padding:10px 0}
+    .bank-mini-item:first-child{padding-left:0}
+    .bank-mini-item:last-child{border-bottom:none;padding-bottom:0}
+    .app-ref-name{min-width:0;width:100%}
+    .rate-cards{grid-template-columns:1fr;gap:12px}
+    .rate-card{padding:16px 18px 15px}
+    .rate-card-num{font-size:34px}
+    .expense-head{flex-direction:column;align-items:flex-start !important}
+    .expense-head .btn{width:100%;justify-content:center}
+    .top-actions{width:100% !important;min-width:0 !important}
+    .top-actions .btn{flex:1 1 0 !important;min-width:0;justify-content:center;white-space:normal;
+      font-size:13px;padding:11px 8px}
+    #searchResults{position:static !important;margin-top:8px;max-height:240px !important}
+    #searchResults .prod-item{padding:10px 12px}
+    .prod-empty{padding:14px;font-size:12px}
+    #detailTable{overflow:auto;-webkit-overflow-scrolling:touch}
+    #detailTable table{min-width:640px}
+    #detailAdditions{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    #detailAdditions table{min-width:420px}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 顶部操作栏 -->
+<div style="display:flex;justify-content:center;margin-bottom:24px;">
+  <div class="top-actions" style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:560px;">
+    {% if is_admin %}
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="openBuyModal()"><svg class="ic"><use href="#i-plus"/></svg>买入新产品</button>
+      <button class="btn btn-import" onclick="openImportModal()"><svg class="ic"><use href="#i-import"/></svg>导入已持有</button>
+      <button class="btn btn-expense" onclick="openExpenseModal()"><svg class="ic"><use href="#i-minus"/></svg>记录支出</button>
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:10px;">
+      {% if is_admin %}<button class="btn btn-ghost" id="btn-refresh" onclick="refreshAll()"><svg class="ic"><use href="#i-refresh"/></svg>立即更新数据</button>{% endif %}
+      <button class="btn btn-ghost" onclick="window.open('/api/report/preview?sharecode='+encodeURIComponent((new URLSearchParams(location.search).get('sharecode'))||'57BQDYVY3U'),'_blank')"><svg class="ic"><use href="#i-file-text"/></svg>预览报告</button>
+    </div>
+    {% if not is_admin %}
+    <div style="text-align:center;font-size:11.5px;color:var(--muted);margin-top:2px;">当前为只读成员账号，仅可查看数据</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 汇总卡片 -->
+<div class="summary-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:22px;">
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-wallet"/></svg></span><span class="stat-label">总本金{% if data.portfolio.total_expense>0 %} · 已扣支出{% endif %}</span></div>
+    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_principal) }}</div>
+    {% if data.portfolio.pending_capital>0 %}
+    <div class="stat-sub" style="color:#b45309;">待入账 +¥{{ '%.2f'|format(data.portfolio.pending_capital) }}</div>
+    {% elif data.portfolio.total_expense>0 %}
+    <div class="stat-sub">累计取出 ¥{{ '%.2f'|format(data.portfolio.total_expense) }}</div>
+    {% endif %}
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#ecfdf5;color:#059669"><svg class="ic"><use href="#i-bar-chart"/></svg></span><span class="stat-label">当前市值</span></div>
+    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_value) }}</div>
+    {% if data.portfolio.additions_total>0 %}
+    <div class="stat-sub">含追加本金 ¥{{ '%.2f'|format(data.portfolio.additions_total) }}</div>
+    {% endif %}
+  </div>
+  <div class="card stat-card hero" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-trending-up"/></svg></span><span class="stat-label">整体七日年化</span></div>
+    <div class="stat-num">
+      {% if data.portfolio.overall_annual is not none %}{{ '%.4f'|format(data.portfolio.overall_annual) }}%{% else %}-{% endif %}
+    </div>
+    <div class="stat-sub">按本金加权</div>
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#fef3c7;color:#d97706"><svg class="ic"><use href="#i-sparkles"/></svg></span><span class="stat-label">累计收益</span></div>
+    <div class="stat-num up">
+      {% if data.portfolio.total_profit>=0 %}+{% endif %}¥{{ '%.2f'|format(data.portfolio.total_profit) }}
+    </div>
+    <div class="stat-sub">
+      历史 {{ '%.2f'|format(data.portfolio.historical_profit) }} + 监控后 {{ '%.2f'|format(data.portfolio.rolling_profit) }}
+    </div>
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#f5f3ff;color:#7c3aed"><svg class="ic"><use href="#i-target"/></svg></span><span class="stat-label">收益率 · {{ data.portfolio.count }} 笔持仓</span></div>
+    <div class="stat-num up">
+      {% if data.portfolio.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(data.portfolio.profit_rate) }}%
+    </div>
+  </div>
+</div>
+
+<!-- 三家银行官网抓取年化（3 卡片，重点展示官方七日年化，含分银行小计数据） -->
+<div style="margin-bottom:22px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 12px;flex-wrap:wrap;">
+    <div style="font-size:12px;font-weight:700;color:#64748b;letter-spacing:.3px;">分银行概览 · 官网抓取年化与持仓对照</div>
+    <div style="font-size:11px;color:var(--muted);">各行官网每日抓取，按持有产品<b>算术平均</b>；建行按每万份收益折算（与建行 App 口径一致）</div>
+  </div>
+  {% set bs = data.portfolio.bank_summary %}
+  <div class="rate-cards">
+    {% set rate_banks = [
+      ('ccb','建设银行','建信理财 · 官网抓取','#2563eb','建'),
+      ('psbc','邮储银行','邮银财富 · 官网抓取','#16a34a','邮'),
+      ('spdb','浦发银行','浦银理财 · 官网抓取','#7c3aed','浦')
+    ] %}
+    {% for key, label, sub, color, ch in rate_banks %}
+    <div class="rate-card" style="--bank:{{ color }};">
+      <div class="rate-card-head">
+        {% if key=='ccb' %}
+        <span class="rate-card-avatar bank-logo"><svg class="logo-svg"><use href="#logo-ccb"/></svg></span>
+        {% elif key=='psbc' %}
+        <span class="rate-card-avatar bank-logo"><svg class="logo-svg"><use href="#logo-psbc"/></svg></span>
+        {% elif key=='spdb' %}
+        <span class="rate-card-avatar bank-logo"><svg class="logo-svg spdb"><use href="#logo-spdb"/></svg></span>
+        {% else %}
+        <span class="rate-card-avatar">{{ ch }}</span>
+        {% endif %}
+        <div>
+          <div class="rate-card-title">{{ label }}</div>
+          <div class="rate-card-sub">{{ sub }}</div>
+        </div>
+      </div>
+      <div class="rate-card-main">
+        <div class="rate-card-label">官方七日年化收益率</div>
+        <div class="rate-card-num">
+          {% if bs.get(key) and bs[key].avg_annual is not none %}{{ '%.4f'|format(bs[key].avg_annual) }}<span class="pct">%</span>{% else %}—{% endif %}
+        </div>
+        <div class="rate-card-tag">
+          {% if bs.get(key) and bs[key].avg_date %}
+            <svg class="ic" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-clock"/></svg>
+            净值日期 {{ bs[key].avg_date }}
+          {% else %}
+            官网每日抓取 · 持有产品算术平均
+          {% endif %}
+        </div>
+      </div>
+      <div class="rate-card-foot">
+        {% if bs.get(key) %}
+        <div class="rate-card-metrics">
+          <div class="metric"><span>当前市值</span><b class="value">¥{{ '%.2f'|format(bs[key].value) }}</b></div>
+          <div class="metric"><span>累计收益</span><b class="{% if bs[key].profit>=0 %}up{% else %}down{% endif %}">¥{{ '%.2f'|format(bs[key].profit) }}</b></div>
+          <div class="metric"><span>持有产品</span><b>{{ bs[key].count }} 只</b></div>
+          <div class="metric"><span>加权年化</span><b>{{ '%.4f'|format(bs[key].annual) if bs[key].annual is not none else '-' }}%</b></div>
+        </div>
+        {% if bs[key].pending and bs[key].pending>0 %}
+        <div class="rate-card-pending">待入账 ¥{{ '%.2f'|format(bs[key].pending) }}</div>
+        {% endif %}
+        {% else %}
+        <div class="rate-card-empty">暂无该行持仓</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 本金支出记录（仅有支出时显示） -->
+{% if data.withdrawals %}
+<div class="card" style="padding:20px;margin-bottom:22px;">
+  <div class="expense-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:16px;font-weight:700;">本金支出（赎回 / 取出）</div>
+      <div class="muted" style="font-size:12px;margin-top:2px;">
+        建行：金额在建行全部产品间平均分摊；邮储 / 浦发：只从所选的那只产品扣减
+      </div>
+    </div>
+  </div>
+  <div class="table-scroll">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px;">
+    <thead>
+      <tr style="background:#f8fafc;color:#64748b;text-align:left;">
+        <th style="padding:9px 12px;">支出日期</th>
+        <th style="padding:9px 12px;">扣减范围</th>
+        <th style="padding:9px 12px;text-align:right;">金额</th>
+        <th style="padding:9px 12px;">备注</th>
+        <th style="padding:9px 12px;text-align:center;">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in data.withdrawals %}
+      <tr style="border-top:1px solid var(--border);">
+        <td style="padding:9px 12px;white-space:nowrap;">{{ w.expense_date }}</td>
+        <td style="padding:9px 12px;font-size:12px;">
+          {% if w.bank %}
+          <span class="badge badge-{{ w.bank }}">{% if w.bank=='psbc' %}邮储{% elif w.bank=='spdb' %}浦发{% else %}建行{% endif %}</span>
+          {% endif %}
+          <span class="muted">{{ w.scope_label }}</span>
+        </td>
+        <td style="padding:9px 12px;text-align:right;font-weight:600;color:var(--up);">−¥{{ '%.2f'|format(w.amount) }}</td>
+        <td style="padding:9px 12px;" class="muted">{{ w.note or '-' }}</td>
+        <td style="padding:9px 12px;text-align:center;">
+          {% if is_admin %}<button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" onclick="delWithdrawal({{ w.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg></button>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{% if alert_enabled and low_products %}
+<div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid #f59e0b;background:#fffbeb;">
+  <div style="font-size:13px;font-weight:600;color:#92400e;"><svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-alert"/></svg> {{ low_products|length }} 只产品七日年化低于 {{ '%.2f'|format(alert_annual) }}%</div>
+  <div style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.9;">
+    {% for p in low_products %}{{ p.product_name }} <b>{{ '%.4f'|format(p.latest_annual) }}%</b>{% if not loop.last %} · {% endif %}{% endfor %}
+  </div>
+  <div style="font-size:12px;color:#a16207;margin-top:4px;">每日任务跑完会单独发一封预警邮件，阈值在设置页调整</div>
+</div>
+{% endif %}
+
+<!-- 持仓列表（桌面表格） -->
+<div class="card holding-table-wrap" style="padding:0;overflow:hidden;">
+  <div class="table-scroll">
+  <table class="modern-table">
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">产品</th>
+        <th style="text-align:right;">本金</th>
+        <th style="text-align:right;">当前市值</th>
+        <th style="text-align:right;">累计收益</th>
+        <th style="text-align:right;">收益率</th>
+        <th style="text-align:right;">七日年化</th>
+        <th style="text-align:right;">净值日期</th>
+        <th style="text-align:center;padding-right:20px;">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in data.holdings %}
+      <tr style="border-top:1px solid var(--border);" id="row-{{ h.id }}">
+        <td style="padding:14px 20px;">
+          <b>{{ h.product_name }}</b>
+          <span class="badge badge-{{ h.bank }}">
+            {% if h.bank=='psbc' %}邮储{% elif h.bank=='spdb' %}浦发{% else %}建行{% endif %}
+          </span>
+          {% if h.status=='pending' %}
+          <span class="badge badge-pending" title="{{ h.settle_date }} 入账">{{ h.settle_date }} 入账</span>
+          {% elif h.status=='settled' %}
+          <span class="badge badge-settled" title="已入账，明日开始计息">{{ h.first_profit_date }} 起息</span>
+          {% endif %}
+          <div class="muted" style="font-size:11px;">{{ h.product_code }} · 买入 {{ h.buy_date }}</div>
+          {% if h.note %}<div class="muted" style="font-size:11px;">{{ h.note }}</div>{% endif %}
+        </td>
+        <td style="padding:14px 12px;text-align:right;">
+          ¥{{ '%.2f'|format(h.principal) }}
+          {% if h.total_expense>0 %}<div class="muted" style="font-size:11px;">含支出 −{{ '%.2f'|format(h.total_expense) }}</div>{% endif %}
+          {% if h.additions_total>0 %}<div class="muted" style="font-size:11px;">含追加 +{{ '%.2f'|format(h.additions_total) }}</div>{% endif %}
+          {% if h.pending_capital>0 %}<div style="font-size:11px;color:#b45309;">待入账 +{{ '%.2f'|format(h.pending_capital) }}</div>{% endif %}
+        </td>
+        <td style="padding:14px 12px;text-align:right;">¥{{ '%.2f'|format(h.current_value) }}</td>
+        <td style="padding:14px 12px;text-align:right;" class="{% if h.cum_profit>=0 %}up{% else %}down{% endif %}">
+          {% if h.cum_profit>=0 %}+{% endif %}¥{{ '%.2f'|format(h.cum_profit) }}</td>
+        <td style="padding:14px 12px;text-align:right;" class="{% if h.profit_rate>=0 %}up{% else %}down{% endif %}">
+          {% if h.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(h.profit_rate) }}%</td>
+        <td style="padding:14px 12px;text-align:right;">{% if h.latest_annual is not none %}{% if alert_enabled and h.latest_annual < alert_annual %}<span style="color:#c0392b;font-weight:600;" title="低于预警值 {{ '%.2f'|format(alert_annual) }}%"><svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-alert"/></svg> {{ '%.4f'|format(h.latest_annual) }}%</span>{% else %}{{ '%.4f'|format(h.latest_annual) }}%{% endif %}{% else %}-{% endif %}</td>
+        <td style="padding:14px 12px;text-align:right;" class="muted">{{ h.latest_date or '-' }}</td>
+        <td style="text-align:center;white-space:nowrap;padding-right:20px;">
+          <button class="btn btn-ghost row-btn" onclick="showDetail({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-eye"/></svg>明细</button>
+          {% if is_admin %}
+          <button class="btn btn-ghost row-btn" onclick="openEditModal({{ h.id }})" title="编辑持仓"><svg class="ic" style="width:14px;height:14px"><use href="#i-edit"/></svg>编辑</button>
+          <button class="btn btn-ghost row-btn" onclick="openCapitalModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>加仓</button>
+          <button class="btn btn-ghost row-btn" onclick="refreshHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-refresh"/></svg></button>
+          <button class="btn btn-danger row-btn" onclick="delHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg>删</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="border-top:none;">
+        <div class="empty-state">
+          <div class="ico"><svg class="ic" style="width:38px;height:38px;stroke-width:1.5"><use href="#i-folder"/></svg></div>
+          <b>还没有持仓</b>
+          <div>点击顶部「＋ 买入新产品」开始记录你的理财</div>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- 持仓列表（移动端卡片） -->
+<div class="holding-cards">
+  {% for h in data.holdings %}
+  <div class="hcard" id="card-{{ h.id }}">
+    <div class="hcard-name">
+      {{ h.product_name }}
+      <span class="badge badge-{{ h.bank }}">
+        {% if h.bank=='psbc' %}邮储{% elif h.bank=='spdb' %}浦发{% else %}建行{% endif %}
+      </span>
+      {% if h.status=='pending' %}
+      <span class="badge badge-pending">{{ h.settle_date }} 入账</span>
+      {% elif h.status=='settled' %}
+      <span class="badge badge-settled">{{ h.first_profit_date }} 起息</span>
+      {% endif %}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:3px;">{{ h.product_code }} · 买入 {{ h.buy_date }}</div>
+
+    <div class="hcard-main">
+      <div>
+        <div class="muted" style="font-size:11px;">当前市值</div>
+        <div class="val">¥{{ '%.2f'|format(h.current_value) }}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="muted" style="font-size:11px;">累计收益</div>
+        <div class="val {% if h.cum_profit>=0 %}up{% else %}down{% endif %}" style="font-size:18px;">
+          {% if h.cum_profit>=0 %}+{% endif %}¥{{ '%.2f'|format(h.cum_profit) }}
+        </div>
+        <div class="muted" style="font-size:11px;">
+          {% if h.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(h.profit_rate) }}%
+        </div>
+      </div>
+    </div>
+
+    <div class="hcard-meta">
+      <span>本金 ¥{{ '%.2f'|format(h.principal) }}</span>
+      {% if h.additions_total>0 %}<span>含追加 +{{ '%.2f'|format(h.additions_total) }}</span>{% endif %}
+      {% if h.pending_capital>0 %}<span style="color:#b45309;">待入账 +{{ '%.2f'|format(h.pending_capital) }}</span>{% endif %}
+      <span>年化 {% if h.latest_annual is not none %}{% if alert_enabled and h.latest_annual < alert_annual %}<span style="color:#c0392b;font-weight:600;" title="低于预警值 {{ '%.2f'|format(alert_annual) }}%"><svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-alert"/></svg> {{ '%.4f'|format(h.latest_annual) }}%</span>{% else %}{{ '%.4f'|format(h.latest_annual) }}%{% endif %}{% else %}-{% endif %}</span>
+      <span>净值 {{ h.latest_date or '-' }}</span>
+    </div>
+
+    <div class="hcard-actions">
+      <button class="btn btn-ghost" onclick="showDetail({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-eye"/></svg>明细</button>
+      {% if is_admin %}
+      <button class="btn btn-ghost" onclick="openEditModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-edit"/></svg>编辑</button>
+      <button class="btn btn-ghost" onclick="openCapitalModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>加仓</button>
+      <button class="btn btn-ghost" onclick="refreshHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-refresh"/></svg></button>
+      <button class="btn btn-danger" onclick="delHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg>删除</button>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card empty-state">
+    <div class="ico"><svg class="ic" style="width:38px;height:38px;stroke-width:1.5"><use href="#i-folder"/></svg></div>
+    <b>还没有持仓</b>
+    <div>点顶部「＋ 买入新产品」开始记录</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 数据来源 -->
+<div class="card" style="padding:18px 20px;margin-top:16px;">
+  <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;letter-spacing:.3px;">数据来源</div>
+  <div>
+    {% for src in data_sources %}
+    <div class="src-item">
+      <span class="badge badge-{{ src.bank }}" style="flex:0 0 auto;margin-top:2px;">
+        {% if src.bank=='psbc' %}邮储{% elif src.bank=='spdb' %}浦发{% else %}建行{% endif %}
+      </span>
+      <div style="min-width:0;">
+        <div style="color:#475569;font-weight:600;">{{ src.label }} <span class="muted" style="font-weight:400">· {{ src.desc }}</span></div>
+        <a href="{{ src.url }}" target="_blank" rel="noopener"
+           style="color:var(--brand);font-size:12px;word-break:break-all;text-decoration:none;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">{{ src.url }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="muted" style="font-size:12px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);line-height:1.9;">
+    入账规则：T 日买入 → T+1 入账（计入市值）→ T+2 起息（开始计入收益）。<br>
+    收益按「每万份收益」逐日复利，收益并入本金滚动计算；「每万份收益」为已扣除费用的单日实际收益。
+  </div>
+</div>
+{% endblock %}
+
+{% block content_modals %}
+{% endblock %}
+
+{% block scripts %}
+<!-- 支出录入弹窗 -->
+<div class="modal-mask" id="expenseModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head">
+      <h3>记录本金支出</h3>
+      <button class="modal-close" onclick="closeModal('expenseModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="bank-tabs" id="expBankTabs">
+        <button class="bank-tab active" data-bank="ccb" onclick="setExpenseBank('ccb')">建行</button>
+        <button class="bank-tab" data-bank="psbc" onclick="setExpenseBank('psbc')">邮储</button>
+        <button class="bank-tab" data-bank="spdb" onclick="setExpenseBank('spdb')">浦发</button>
+      </div>
+
+      <div class="form-row" id="expHoldingRow" style="display:none;">
+        <label>选择要扣减的产品</label>
+        <select id="e-holding"></select>
+        <div class="hint">支出只从所选这只产品扣减，其他产品不受影响</div>
+      </div>
+
+      <div class="form-row">
+        <label>支出金额（元）</label>
+        <input type="number" id="e-amount" step="0.01" placeholder="如 1000.00">
+      </div>
+      <div class="form-row">
+        <label>支出日期</label>
+        <input type="date" id="e-date">
+        <div class="hint">从该日起，扣掉的本金不再计息；之前已赚收益保留</div>
+      </div>
+      <div class="form-row">
+        <label>备注（可选）</label>
+        <input type="text" id="e-note" placeholder="如：赎回部分本金">
+      </div>
+      <div class="hint" id="expScopeHint" style="background:#f8fafc;padding:10px;border-radius:8px;line-height:1.8;">
+        建行：金额将在这 10 只建行产品之间<b>平均分摊</b>。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('expenseModal')">取消</button>
+      <button class="btn btn-primary" id="btn-expense" onclick="submitExpense()">保存并重算</button>
+    </div>
+  </div>
+</div>
+
+<!-- 买入新产品弹窗（按银行标签切换选择产品） -->
+<div class="modal-mask" id="buyModal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-head">
+      <h3 id="buyModalTitle">记录持仓</h3>
+      <button class="modal-close" onclick="closeModal('buyModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="bank-tabs" id="modeTabs" style="background:#eef1f7;">
+        <button class="bank-tab active" data-mode="new" onclick="switchMode('new')"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-plus"/></svg> 新买入</button>
+        <button class="bank-tab" data-mode="import" onclick="switchMode('import')"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-import"/></svg> 历史导入（已持有）</button>
+      </div>
+      <div class="bank-tabs" id="bankTabs">
+        <button class="bank-tab active" data-bank="ccb" onclick="switchBank('ccb')">建行 · 建信理财</button>
+        <button class="bank-tab" data-bank="psbc" onclick="switchBank('psbc')">邮储 · 邮银财富</button>
+        <button class="bank-tab" data-bank="spdb" onclick="switchBank('spdb')">浦发 · 浦银理财</button>
+      </div>
+
+      <div class="form-row" style="position:relative;margin-bottom:10px;">
+        <input type="text" id="f-product" placeholder="输入产品名称关键词搜索，如：建信宝、天乐宝、天添利现金宝" autocomplete="off">
+        <div id="searchResults" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;
+          background:#fff;border:1px solid var(--border);border-radius:8px;max-height:260px;overflow:auto;box-shadow:var(--shadow);"></div>
+        <div class="hint" id="searchHint">当前银行：建行。输入关键词后自动搜索，从结果中点选产品</div>
+      </div>
+
+      <div id="pickedBox" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:12px;color:#64748b;">已选择产品</div>
+        <div id="pickedName" style="font-weight:600;margin-top:2px;"></div>
+        <div id="pickedCode" class="muted" style="font-size:11px;"></div>
+      </div>
+
+      <!-- 模式一：新买入 -->
+      <div id="modeNew">
+        <div class="split-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-row" style="margin-bottom:0;">
+            <label>买入金额（元）</label>
+            <input type="number" id="f-principal" step="0.01" placeholder="如 1000.00">
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>买入日期</label>
+            <input type="date" id="f-buy-date">
+          </div>
+        </div>
+        <div class="hint" style="background:#f8fafc;padding:10px;border-radius:8px;line-height:1.8;margin-top:14px;">
+          当天买入 → <b>第二天入账</b>（计入市值）→ <b>第三天开始计收益</b>。<br>
+          首次买入某产品会自动回溯抓取近 3 个月净值，可能需要十几秒。
+        </div>
+      </div>
+
+      <!-- 模式二：历史导入（已持有） -->
+      <div id="modeImport" style="display:none;">
+        <div class="split-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-row" style="margin-bottom:0;">
+            <label>当前市值（元）</label>
+            <input type="number" id="imp-market-value" step="0.01" placeholder="App 上看到的持仓金额">
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>历史收益（元）</label>
+            <input type="number" id="imp-hist-profit" step="0.01" placeholder="市值里已含的累计收益">
+          </div>
+        </div>
+        <div id="imp-derived" style="margin-top:14px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+            <span style="color:#64748b;">反推本金 = 市值 − 历史收益</span>
+            <b id="imp-principal" style="color:#6d28d9;font-variant-numeric:tabular-nums;">¥0.00</b>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;">
+            <span style="color:#64748b;">起算日期</span>
+            <b id="imp-buy-date" style="color:#6d28d9;"></b>
+          </div>
+        </div>
+        <div class="hint" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:10px;border-radius:8px;line-height:1.8;margin-top:12px;">
+          适合<b>很久前买入</b>、只记得当前市值和历史收益的产品。<br>
+          系统从<b>今天</b>起按每日净值滚动：累计收益 = 历史收益 + 之后的新增收益；<b>不回溯</b>抓历史净值。
+        </div>
+      </div>
+
+      <div class="form-row" style="margin-top:14px;">
+        <label>备注（可选）</label>
+        <input type="text" id="f-note" placeholder="如：建行App买入">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('buyModal')">取消</button>
+      <button class="btn btn-primary" id="btn-add" onclick="submitHolding()">确认买入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑持仓弹窗 -->
+<div class="modal-mask" id="editModal">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-head">
+      <h3>编辑持仓</h3>
+      <button class="modal-close" onclick="closeModal('editModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="edit-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:11px 14px;margin-bottom:16px;">
+        <div id="edit-prod-name" style="font-weight:600;"></div>
+        <div id="edit-prod-code" class="muted" style="font-size:11px;margin-top:2px;"></div>
+      </div>
+
+      <!-- 记账口径切换 -->
+      <div class="bank-tabs" id="editModeTabs" style="background:#eef1f7;margin-bottom:16px;">
+        <button class="bank-tab active" data-mode="normal" onclick="switchEditMode('normal')"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-edit"/></svg> 常规编辑</button>
+        <button class="bank-tab" data-mode="held" onclick="switchEditMode('held')"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-import"/></svg> 已持有（市值反推）</button>
+      </div>
+
+      <!-- 产品名称：两种模式共用 -->
+      <div class="form-row">
+        <label>产品名称</label>
+        <input type="text" id="ed-name" placeholder="产品名称">
+        <div class="hint">产品代码决定净值抓取来源，不可修改；如需更换产品请删除后重新买入</div>
+      </div>
+
+      <!-- 模式一：常规编辑 -->
+      <div id="editModeNormal">
+      <div class="split-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-row" style="margin-bottom:0;">
+          <label>本金（元）</label>
+          <input type="number" id="ed-principal" step="0.01" placeholder="如 10000.00">
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label>买入日期</label>
+          <input type="date" id="ed-buy-date">
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:14px;">
+        <label>入账日期</label>
+        <input type="date" id="ed-settle-date">
+        <div class="hint">留空 = 本金已在账（历史持仓）。正常规则：买入日 T → T+1 入账 → T+2 起息</div>
+      </div>
+      <div class="form-row">
+        <label>历史收益（元）</label>
+        <input type="number" id="ed-hist-profit" step="0.01" placeholder="留空 = 按银行全局基准分摊">
+        <div class="hint">历史导入的产品填该笔历史收益；普通持仓留空即可（沿用银行历史收益基准）</div>
+      </div>
+      </div><!-- /editModeNormal -->
+
+      <!-- 模式二：已持有（市值反推） -->
+      <div id="editModeHeld" style="display:none;">
+        <div class="split-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-row" style="margin-bottom:0;">
+            <label>当前市值（元）</label>
+            <input type="number" id="ed-market-value" step="0.01" placeholder="App 上看到的持仓金额">
+          </div>
+          <div class="form-row" style="margin-bottom:0;">
+            <label>历史收益（元）</label>
+            <input type="number" id="ed-hist-profit2" step="0.01" placeholder="市值里已含的累计收益">
+          </div>
+        </div>
+        <div id="ed-derived" style="margin-top:14px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+            <span style="color:#64748b;">反推本金 = 市值 − 历史收益</span>
+            <b id="ed-principal-derived" style="color:#6d28d9;font-variant-numeric:tabular-nums;">¥0.00</b>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;">
+            <span style="color:#64748b;">起算日期</span>
+            <b id="ed-buy-date-display" style="color:#6d28d9;"></b>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:14px;">
+          <label>起算日期</label>
+          <input type="date" id="ed-buy-date2">
+          <div class="hint">默认今天；从该日起按每日净值滚动，不回溯抓历史净值</div>
+        </div>
+        <div class="hint" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:10px;border-radius:8px;line-height:1.8;">
+          以<b>当前市值为起点</b>重置这笔持仓：市值由 App 给定，累计收益 = 历史收益 + 之后新增收益，本金 = 市值 − 历史收益。<br>
+          <b>注意</b>：若这笔有追加本金或支出记录，其效果已含在市值里，请确认后再保存。
+        </div>
+      </div><!-- /editModeHeld -->
+
+      <div class="form-row" style="margin-top:14px;">
+        <label>备注（可选）</label>
+        <input type="text" id="ed-note" placeholder="如：建行App买入">
+      </div>
+      <div class="hint" id="ed-save-hint" style="background:#f8fafc;padding:10px;border-radius:8px;line-height:1.8;">
+        修改本金或日期后，系统会<b>自动重算收益</b>；追加本金与支出记录不受影响。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('editModal')">取消</button>
+      <button class="btn btn-primary" id="btn-edit" onclick="submitEdit()">保存并重算</button>
+    </div>
+  </div>
+</div>
+
+<!-- 追加本金弹窗 -->
+<div class="modal-mask" id="capitalModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head">
+      <h3>追加本金（继续买入）</h3>
+      <button class="modal-close" onclick="closeModal('capitalModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="cap-product" style="font-weight:600;margin-bottom:14px;"></div>
+      <div class="form-row">
+        <label>本次买入金额（元）</label>
+        <input type="number" id="c-amount" step="0.01" placeholder="如 500.00">
+      </div>
+      <div class="form-row">
+        <label>买入日期</label>
+        <input type="date" id="c-date">
+      </div>
+      <div class="form-row">
+        <label>备注（可选）</label>
+        <input type="text" id="c-note" placeholder="如：加仓 500">
+      </div>
+      <div class="hint" id="cap-hint" style="background:#f8fafc;padding:10px;border-radius:8px;line-height:1.8;">
+        今天买入 → 明天入账（计入市值）→ 后天开始计收益。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('capitalModal')">取消</button>
+      <button class="btn btn-primary" id="btn-capital" onclick="submitCapital()">保存并重算</button>
+    </div>
+  </div>
+</div>
+
+<!-- 明细弹窗 -->
+<div class="modal-mask" id="detailModal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-head">
+      <h3 id="detail-title">收益明细</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <canvas id="profitChart" height="90"></canvas>
+      <div id="detailAdditions" style="margin-top:18px;"></div>
+      <div id="detailTable" style="margin-top:18px;max-height:340px;overflow:auto;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('detailModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+let selectedProduct=null, searchTimer=null, profitChart=null, currentBank='ccb', currentHolding=null, searchItems=[];
+
+// 支出日期默认今天
+document.getElementById('e-date').value=todayStr();
+document.getElementById('f-buy-date').value=todayStr();
+document.getElementById('c-date').value=todayStr();
+document.getElementById('c-date').addEventListener('change',updateCapHint);
+
+const BANK_LABEL={ccb:'建行',psbc:'邮储',spdb:'浦发'};
+// 持仓清单（用于支出弹窗选择银行 / 单只产品）
+const HOLDINGS=[{% for h in data.holdings %}{id:{{ h.id }},bank:"{{ h.bank }}",name:{{ h.product_name|tojson }},settled:{{ 'true' if h.initial_settled else 'false' }}},{% endfor %}];
+let expenseBank='ccb';
+
+function openExpenseModal(){
+  document.getElementById('e-amount').value='';
+  document.getElementById('e-note').value='';
+  document.getElementById('e-date').value=todayStr();
+  setExpenseBank('ccb');
+  openModal('expenseModal');
+}
+
+function setExpenseBank(bank){
+  expenseBank=bank;
+  document.querySelectorAll('#expBankTabs .bank-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.bank===bank);
+  });
+  const settled=HOLDINGS.filter(h=>h.bank===bank&&h.settled);
+  const row=document.getElementById('expHoldingRow');
+  const sel=document.getElementById('e-holding');
+  if(bank==='ccb'){
+    row.style.display='none';
+  }else{
+    row.style.display='block';
+    sel.innerHTML=settled.length
+      ? settled.map(h=>`<option value="${h.id}">${escapeHtml(h.name)}</option>`).join('')
+      : '<option value="">该行暂无已入账产品</option>';
+  }
+  updateExpenseHint();
+}
+
+function updateExpenseHint(){
+  const amt=parseFloat(document.getElementById('e-amount').value||'0');
+  const hint=document.getElementById('expScopeHint');
+  const bank=expenseBank;
+  const settled=HOLDINGS.filter(h=>h.bank===bank&&h.settled);
+  if(bank==='ccb'){
+    hint.innerHTML=`建行：金额将在该行 <b>${settled.length}</b> 只产品之间<b>平均分摊</b>`+
+      (amt>0&&settled.length?`，每只约 <b>¥${(amt/settled.length).toFixed(2)}</b>`:'')+
+      `。扣掉的本金不再计息，已赚收益保留。`;
+  }else{
+    const opt=document.getElementById('e-holding').selectedOptions[0];
+    const name=opt?opt.textContent:'';
+    hint.innerHTML=`${BANK_LABEL[bank]}：支出只从 <b>${name?escapeHtml(name):'所选产品'}</b> 扣减`+
+      (amt>0?` <b>¥${amt.toFixed(2)}</b>`:'')+`，其他产品不受影响。`;
+  }
+}
+
+document.getElementById('e-amount').addEventListener('input',updateExpenseHint);
+document.getElementById('e-holding').addEventListener('change',updateExpenseHint);
+
+let buyMode='new';
+
+function switchMode(mode){
+  buyMode=mode;
+  document.querySelectorAll('#modeTabs .bank-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.mode===mode);
+  });
+  document.getElementById('modeNew').style.display = mode==='new'?'block':'none';
+  document.getElementById('modeImport').style.display = mode==='import'?'block':'none';
+  document.getElementById('buyModalTitle').textContent = mode==='new'?'买入新产品':'导入已持有产品';
+  document.getElementById('btn-add').textContent = mode==='new'?'确认买入':'确认导入';
+  document.getElementById('btn-add').className = mode==='new'?'btn btn-primary':'btn btn-import';
+  if(mode==='import'){
+    document.getElementById('imp-buy-date').textContent=todayStr();
+    updateDerived();
+  }
+}
+
+function openBuyModal(){
+  switchMode('new');
+  selectedProduct=null;
+  document.getElementById('f-product').value='';
+  document.getElementById('f-principal').value='';
+  document.getElementById('f-note').value='';
+  document.getElementById('f-buy-date').value=todayStr();
+  document.getElementById('pickedBox').style.display='none';
+  document.getElementById('searchResults').style.display='none';
+  switchBank('ccb');
+  openModal('buyModal');
+  setTimeout(()=>document.getElementById('f-product').focus(),200);
+}
+
+function openImportModal(){
+  openBuyModal();
+  switchMode('import');
+  document.getElementById('imp-market-value').value='';
+  document.getElementById('imp-hist-profit').value='';
+  updateDerived();
+}
+
+function updateDerived(){
+  const mv=parseFloat(document.getElementById('imp-market-value').value||'0');
+  const hp=parseFloat(document.getElementById('imp-hist-profit').value||'0');
+  const principal=mv-hp;
+  const el=document.getElementById('imp-principal');
+  el.textContent='¥'+(principal>0?principal.toFixed(2):'0.00');
+  el.style.color = principal<0 ? '#e0392b' : '#6d28d9';
+}
+
+document.getElementById('imp-market-value').addEventListener('input',updateDerived);
+document.getElementById('imp-hist-profit').addEventListener('input',updateDerived);
+
+function switchBank(bank){
+  currentBank=bank;
+  document.querySelectorAll('#bankTabs .bank-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.bank===bank);
+  });
+  document.getElementById('searchHint').textContent=
+    `当前银行：${BANK_LABEL[bank]}。输入关键词后自动搜索，从结果中点选产品`;
+  const q=document.getElementById('f-product').value.trim();
+  if(q.length>=2) runSearch(q);
+  else document.getElementById('searchResults').style.display='none';
+}
+
+async function runSearch(q){
+  const res=await api('/api/search?bank='+currentBank+'&q='+encodeURIComponent(q));
+  const box=document.getElementById('searchResults');
+  if(!res.ok||!res.products||!res.products.length){
+    searchItems=[];
+    box.innerHTML='<div class="prod-empty">未找到产品，换个关键词试试（如「建信宝」「天乐宝」「天添利」）</div>';
+    box.style.display='block';
+    return;
+  }
+  searchItems=res.products;
+  box.innerHTML=res.products.map((p,i)=>{
+    const sel=selectedProduct&&selectedProduct.code===p.product_code;
+    return `<div class="prod-item${sel?' selected':''}" onclick="pickProductByIndex(${i})">
+      <div style="font-weight:500;">${escapeHtml(p.product_name)}</div>
+      <div class="muted" style="font-size:11px;">${escapeHtml(p.product_code)} · 最新净值 ${p.latest_date||'-'}</div>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function pickProductByIndex(i){
+  const p=searchItems[i];
+  if(!p)return;
+  pickProduct(p.product_code,p.product_name);
+}
+
+document.getElementById('f-product').addEventListener('input',e=>{
+  clearTimeout(searchTimer);
+  const q=e.target.value.trim();
+  selectedProduct=null;
+  document.getElementById('pickedBox').style.display='none';
+  if(q.length<2){document.getElementById('searchResults').style.display='none';return;}
+  searchTimer=setTimeout(()=>runSearch(q),400);
+});
+
+function pickProduct(code,name){
+  selectedProduct={code,name,bank:currentBank};
+  document.getElementById('f-product').value=name;
+  document.getElementById('pickedName').textContent=name;
+  document.getElementById('pickedCode').textContent=`${code} · ${BANK_LABEL[currentBank]}`;
+  document.getElementById('pickedBox').style.display='block';
+  document.getElementById('searchResults').style.display='none';
+}
+
+async function submitHolding(){
+  const note=document.getElementById('f-note').value.trim();
+  if(!selectedProduct){toast('请先搜索并选择一个产品',false);return;}
+  const btn=document.getElementById('btn-add');
+
+  if(buyMode==='import'){
+    const mv=document.getElementById('imp-market-value').value.trim();
+    const hp=document.getElementById('imp-hist-profit').value.trim();
+    if(!mv||parseFloat(mv)<=0){toast('请填写当前市值',false);return;}
+    const hist=parseFloat(hp||'0');
+    if(hist<0){toast('历史收益不能为负',false);return;}
+    if(hist>=parseFloat(mv)){toast('历史收益必须小于当前市值',false);return;}
+    btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 导入中...';
+    const res=await api('/api/holdings/import',{method:'POST',body:JSON.stringify({
+      product_code:selectedProduct.code,product_name:selectedProduct.name,
+      market_value:mv,historical_profit:hist,note})});
+    btn.disabled=false;btn.textContent='确认导入';
+    if(res.ok){
+      toast(`已导入：市值 ¥${parseFloat(mv).toFixed(2)}，本金 ¥${res.principal.toFixed(2)}`);
+      closeModal('buyModal');setTimeout(()=>location.reload(),1200);
+    }else{toast(res.error||'导入失败',false);}
+    return;
+  }
+
+  // 新买入
+  const principal=document.getElementById('f-principal').value.trim();
+  const buy_date=document.getElementById('f-buy-date').value;
+  if(!principal||parseFloat(principal)<=0){toast('请填写买入金额',false);return;}
+  if(!buy_date){toast('请选择买入日期',false);return;}
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 抓取历史数据...';
+  const res=await api('/api/holdings',{method:'POST',body:JSON.stringify({
+    product_code:selectedProduct.code,product_name:selectedProduct.name,
+    principal,buy_date,note})});
+  btn.disabled=false;btn.textContent='确认买入';
+  if(res.ok){
+    toast(`${buy_date} 买入，${res.settle_date} 入账，${addDaysStr(res.settle_date,1)} 起息`);
+    closeModal('buyModal');setTimeout(()=>location.reload(),1200);
+  }else{toast(res.error||'添加失败',false);}
+}
+
+function openCapitalModal(hid){
+  const row=document.getElementById('row-'+hid);
+  const name=row?row.querySelector('td b').textContent:'';
+  currentHolding={id:hid,name:name};
+  document.getElementById('cap-product').textContent=name;
+  document.getElementById('c-amount').value='';
+  document.getElementById('c-note').value='';
+  document.getElementById('c-date').value=todayStr();
+  updateCapHint();
+  openModal('capitalModal');
+  setTimeout(()=>document.getElementById('c-amount').focus(),200);
+}
+
+function updateCapHint(){
+  const d=document.getElementById('c-date').value||todayStr();
+  document.getElementById('cap-hint').innerHTML=
+    `${d} 买入 → <b>${addDaysStr(d,1)} 入账</b>（计入市值）→ <b>${addDaysStr(d,2)} 开始计收益</b>。`;
+}
+
+async function submitCapital(){
+  const amount=document.getElementById('c-amount').value.trim();
+  const invest_date=document.getElementById('c-date').value||todayStr();
+  const note=document.getElementById('c-note').value.trim();
+  if(!amount||parseFloat(amount)<=0){toast('请填写大于 0 的买入金额',false);return;}
+  const btn=document.getElementById('btn-capital');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
+  const res=await api(`/api/holdings/${currentHolding.id}/capital`,{method:'POST',
+    body:JSON.stringify({amount,invest_date,note})});
+  btn.disabled=false;btn.textContent='保存并重算';
+  if(res.ok){
+    toast(`已追加 ¥${amount}，${res.settle_date} 入账，${res.first_profit_date} 起息`);
+    closeModal('capitalModal');setTimeout(()=>location.reload(),900);
+  }else{toast(res.error||'保存失败',false);}
+}
+
+async function delAddition(id){
+  confirmModal('删除这条追加本金记录？系统会重算收益。',async()=>{
+    const res=await api('/api/additions/'+id,{method:'DELETE'});
+    if(res.ok){toast('已删除并重算');setTimeout(()=>location.reload(),400);}
+    else toast(res.error||'删除失败',false);
+  },{title:'删除追加本金',okText:'删除'});
+}
+
+async function submitExpense(){
+  const amount=document.getElementById('e-amount').value.trim();
+  const expense_date=document.getElementById('e-date').value;
+  const note=document.getElementById('e-note').value.trim();
+  const bank=expenseBank;
+  let holding_id=null;
+  if(bank!=='ccb'){
+    const v=document.getElementById('e-holding').value;
+    if(!v){toast('该行暂无已入账产品，无法登记支出',false);return;}
+    holding_id=parseInt(v);
+  }
+  if(!amount||!expense_date||parseFloat(amount)<=0){toast('请填写支出金额和日期',false);return;}
+  const btn=document.getElementById('btn-expense');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 重算中...';
+  const res=await api('/api/withdrawals',{method:'POST',
+    body:JSON.stringify({amount,expense_date,note,bank,holding_id})});
+  btn.disabled=false;btn.textContent='保存并重算';
+  if(res.ok){
+    toast(bank==='ccb'?'支出已记录，已在建行各产品间平均分摊':'支出已记录，已从所选产品扣减');
+    closeModal('expenseModal');setTimeout(()=>location.reload(),400);
+  }
+  else{toast(res.error||'保存失败',false);}
+}
+
+async function delWithdrawal(id){
+  confirmModal('确定删除这条支出记录？系统会重算收益。',async()=>{
+    const res=await api('/api/withdrawals/'+id,{method:'DELETE'});
+    if(res.ok){toast('已删除并重算');setTimeout(()=>location.reload(),400);}
+    else toast(res.error||'删除失败',false);
+  },{title:'删除支出记录',okText:'删除'});
+}
+
+async function refreshAll(){
+  const btn=document.getElementById('btn-refresh');
+  btn.disabled=true;btn.textContent='更新中...';
+  const res=await api('/api/refresh',{method:'POST'});
+  btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-refresh"/></svg> 立即更新数据';
+  if(res.ok){toast('数据已更新');setTimeout(()=>location.reload(),400);}
+  else{toast('部分更新失败：'+JSON.stringify(res.fails),false);}
+}
+
+async function refreshHolding(id){
+  toast('正在刷新该产品数据...');
+  const res=await api('/api/holdings/'+id+'/refresh',{method:'POST'});
+  if(res.ok){toast('已刷新');setTimeout(()=>location.reload(),400);}
+  else{toast(res.error||'刷新失败',false);}
+}
+
+async function delHolding(id){
+  confirmModal('确定删除这笔持仓？删除后该笔的收益记录一并清除。',async()=>{
+    const res=await api('/api/holdings/'+id,{method:'DELETE'});
+    if(res.ok){toast('已删除');setTimeout(()=>location.reload(),400);}
+    else toast(res.error||'删除失败',false);
+  },{title:'删除持仓',okText:'删除'});
+}
+
+// ---------- 编辑持仓 ----------
+let currentEditId=null;
+let editMode='normal';
+
+function switchEditMode(mode){
+  editMode=mode;
+  document.querySelectorAll('#editModeTabs .bank-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.mode===mode);
+  });
+  document.getElementById('editModeNormal').style.display = mode==='normal'?'block':'none';
+  document.getElementById('editModeHeld').style.display = mode==='held'?'block':'none';
+  document.getElementById('ed-save-hint').innerHTML = mode==='normal'
+    ? '修改本金或日期后，系统会<b>自动重算收益</b>；追加本金与支出记录不受影响。'
+    : '保存后系统会以当前市值为起点<b>重置这笔持仓的收益计算</b>（等同于按已持有口径重新录入）。';
+  if(mode==='held') updateEditDerived();
+}
+
+function updateEditDerived(){
+  const mv=parseFloat(document.getElementById('ed-market-value').value||'0');
+  const hp=parseFloat(document.getElementById('ed-hist-profit2').value||'0');
+  const principal=mv-hp;
+  const el=document.getElementById('ed-principal-derived');
+  el.textContent='¥'+(principal>0?principal.toFixed(2):'0.00');
+  el.style.color = principal<0 ? '#e0392b' : '#6d28d9';
+}
+document.getElementById('ed-market-value').addEventListener('input',updateEditDerived);
+document.getElementById('ed-hist-profit2').addEventListener('input',updateEditDerived);
+
+async function openEditModal(id){
+  // 从原始持仓接口读取未加工的数据（本金要用买入时的原始值，不是展示口径）
+  const res=await api('/api/holdings');
+  const h=(res.holdings||[]).find(x=>x.id===id);
+  if(!h){toast('未找到该持仓',false);return;}
+  currentEditId=id;
+  document.getElementById('edit-prod-name').textContent=h.product_name||'';
+  document.getElementById('edit-prod-code').textContent=
+    (h.product_code||'')+(h.bank?' · '+BANK_LABEL[h.bank]:'');
+  document.getElementById('ed-name').value=h.product_name||'';
+
+  // 常规模式字段
+  document.getElementById('ed-principal').value=h.principal;
+  document.getElementById('ed-buy-date').value=h.buy_date||'';
+  document.getElementById('ed-settle-date').value=h.settle_date||'';
+  document.getElementById('ed-hist-profit').value = (h.historical_profit!=null)?h.historical_profit:'';
+
+  // 已持有模式字段：市值预填【起算市值=原始 principal】，不是滚动后的展示市值
+  document.getElementById('ed-market-value').value = h.principal;
+  document.getElementById('ed-hist-profit2').value = (h.historical_profit!=null)?h.historical_profit:'';
+  document.getElementById('ed-buy-date2').value = h.buy_date||todayStr();
+  document.getElementById('ed-buy-date-display').textContent = h.buy_date||todayStr();
+  document.getElementById('ed-note').value=h.note||'';
+
+  // 原本就是已持有口径（无入账日 + 有历史收益）→ 默认进入已持有模式
+  const isHeld = (!h.settle_date) && (h.historical_profit!=null);
+  switchEditMode(isHeld?'held':'normal');
+  openModal('editModal');
+}
+document.getElementById('ed-buy-date2').addEventListener('change',e=>{
+  document.getElementById('ed-buy-date-display').textContent=e.target.value||todayStr();
+});
+
+async function submitEdit(){
+  const name=document.getElementById('ed-name').value.trim();
+  const note=document.getElementById('ed-note').value.trim();
+  if(!name){toast('请填写产品名称',false);return;}
+
+  let payload;
+  if(editMode==='held'){
+    // 已持有口径：与历史导入一致 —— principal=市值M，settle_date=空(已在账)，
+    // historical_profit=H，buy_date=起算日。累计收益=H+新增，本金=M-H。
+    const mv=document.getElementById('ed-market-value').value.trim();
+    const hp=document.getElementById('ed-hist-profit2').value.trim();
+    const buy_date=document.getElementById('ed-buy-date2').value;
+    if(!mv||parseFloat(mv)<=0){toast('请填写当前市值',false);return;}
+    const hist=parseFloat(hp||'0');
+    if(hist<0){toast('历史收益不能为负',false);return;}
+    if(hist>=parseFloat(mv)){toast('历史收益必须小于当前市值（本金须大于 0）',false);return;}
+    if(!buy_date){toast('请选择起算日期',false);return;}
+    payload={product_name:name, principal:parseFloat(mv), buy_date:buy_date,
+             settle_date:'', historical_profit:hist, note:note};
+  }else{
+    const principal=document.getElementById('ed-principal').value.trim();
+    const buy_date=document.getElementById('ed-buy-date').value;
+    const settle_date=document.getElementById('ed-settle-date').value;
+    const hist_profit=document.getElementById('ed-hist-profit').value.trim();
+    if(!principal||parseFloat(principal)<=0){toast('本金必须大于 0',false);return;}
+    if(!buy_date){toast('请选择买入日期',false);return;}
+    if(settle_date&&settle_date<buy_date){toast('入账日期不能早于买入日期',false);return;}
+    if(hist_profit&&parseFloat(hist_profit)<0){toast('历史收益不能为负',false);return;}
+    payload={product_name:name, principal:principal, buy_date:buy_date,
+             settle_date:settle_date, historical_profit:hist_profit, note:note};
+  }
+
+  const btn=document.getElementById('btn-edit');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 保存中...';
+  const res=await api('/api/holdings/'+currentEditId,{method:'POST',body:JSON.stringify(payload)});
+  btn.disabled=false;btn.textContent='保存并重算';
+  if(res.ok){toast('已保存并重算');closeModal('editModal');setTimeout(()=>location.reload(),600);}
+  else{toast(res.error||'保存失败',false);}
+}
+
+async function showDetail(id){
+  const row=document.getElementById('row-'+id);
+  const name=row?row.querySelector('td b').textContent:'';
+  document.getElementById('detail-title').textContent=name+' · 收益明细';
+  openModal('detailModal');
+  const res=await api('/api/holdings/'+id+'/snapshots');
+  const snaps=res.snapshots||[];
+  // 追加本金记录
+  const adds=await api('/api/additions');
+  const mine=(adds.additions||[]).filter(a=>a.holding_id===id);
+  const addBox=document.getElementById('detailAdditions');
+  if(mine.length){
+    let rows=mine.map(a=>{
+      const pending=a.settle_date>todayStr();
+      const tag=pending?`<span class="badge badge-pending">${a.settle_date} 入账</span>`
+        :`<span class="badge badge-earning">已入账</span>`;
+      return `<tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:6px 10px;">${a.invest_date}</td>
+        <td style="padding:6px 10px;text-align:right;">+¥${Number(a.amount).toFixed(2)}</td>
+        <td style="padding:6px 10px;text-align:center;">${tag}</td>
+        <td style="padding:6px 10px;">${a.note||'-'}</td>
+        <td style="padding:6px 10px;text-align:center;">
+          <button class="btn btn-danger" style="padding:3px 9px;font-size:11px;" onclick="delAddition(${a.id})"><svg class="ic" style="width:13px;height:13px"><use href="#i-trash"/></svg></button>
+        </td></tr>`;
+    }).join('');
+    addBox.innerHTML=`<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;">追加本金记录</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+        <th style="padding:6px 10px;">买入日</th><th style="padding:6px 10px;text-align:right;">金额</th>
+        <th style="padding:6px 10px;text-align:center;">状态</th><th style="padding:6px 10px;">备注</th>
+        <th style="padding:6px 10px;text-align:center;">操作</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  }else addBox.innerHTML='';
+
+  if(!snaps.length){
+    document.getElementById('detailTable').innerHTML=
+      '<div class="muted" style="padding:20px;text-align:center;">暂无收益数据（未入账或净值数据尚未更新）</div>';
+    if(profitChart){profitChart.destroy();profitChart=null;}
+    const cv=document.getElementById('profitChart');
+    const c2=cv.getContext('2d');c2.clearRect(0,0,cv.width,cv.height);
+    cv.style.display='none';
+    return;
+  }
+  document.getElementById('profitChart').style.display='block';
+  const ctx=document.getElementById('profitChart').getContext('2d');
+  if(profitChart)profitChart.destroy();
+  profitChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:snaps.map(s=>s.nav_date.slice(5)),
+      datasets:[{label:'累计收益(元)',data:snaps.map(s=>s.cum_profit),
+        borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.2,pointRadius:2}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}},
+      responsive:true,maintainAspectRatio:true}
+  });
+  let rows='';
+  [...snaps].reverse().forEach(s=>{
+    const exp=(s.expense||0)>0?`<span style="color:#c0392b;font-weight:600;">−${s.expense.toFixed(2)}</span>`:'-';
+    const inj=(s.injection||0)>0?`<span style="color:#1d4ed8;font-weight:600;">+${s.injection.toFixed(2)}</span>`:'-';
+    rows+=`<tr style="border-bottom:1px solid #f0f0f0;">
+      <td style="padding:7px 10px;">${s.nav_date}</td>
+      <td style="padding:7px 10px;text-align:right;">${s.annual_rate!=null?Number(s.annual_rate).toFixed(4)+'%':'-'}</td>
+      <td style="padding:7px 10px;text-align:right;">${s.per_10k!=null?s.per_10k:'-'}</td>
+      <td style="padding:7px 10px;text-align:right;color:#c0392b;">+${s.daily_profit.toFixed(4)}</td>
+      <td style="padding:7px 10px;text-align:right;color:#8a94a6;">${exp}</td>
+      <td style="padding:7px 10px;text-align:right;color:#1d4ed8;">${inj}</td>
+      <td style="padding:7px 10px;text-align:right;">${s.balance.toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:right;color:#c0392b;">+${s.cum_profit.toFixed(4)}</td>
+    </tr>`;
+  });
+  document.getElementById('detailTable').innerHTML=`
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="background:#f8fafc;color:#64748b;text-align:left;">
+        <th style="padding:8px 10px;">净值日期</th><th style="padding:8px 10px;text-align:right;">七日年化</th>
+        <th style="padding:8px 10px;text-align:right;">每万份收益</th><th style="padding:8px 10px;text-align:right;">当日收益</th>
+        <th style="padding:8px 10px;text-align:right;">支出</th><th style="padding:8px 10px;text-align:right;">入账</th>
+        <th style="padding:8px 10px;text-align:right;">滚动本金</th><th style="padding:8px 10px;text-align:right;">累计收益</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// 点击弹窗外关闭
+document.querySelectorAll('.modal-mask').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')});
+});
+</script>
+{% endblock %}

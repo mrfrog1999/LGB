@@ -1,0 +1,711 @@
+{% extends "base.html" %}
+{% block title %}设置 · 现金理财监控{% endblock %}
+{% block head %}
+<style>
+  @media (max-width:900px){
+    .settings-grid{grid-template-columns:1fr !important;gap:14px !important}
+    .settings-grid [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important}
+    .settings-grid .card{padding:18px 16px !important}
+  }
+  /* ===== 数据源检测面板 ===== */
+  .diag-wrap{padding:4px 2px}
+  .diag-summary{display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;
+    background:linear-gradient(135deg,#eff6ff,#f0fdfa);border:1px solid #dbeafe;margin-bottom:16px}
+  .diag-summary.bad{background:linear-gradient(135deg,#fef2f2,#fff7ed);border-color:#fecaca}
+  .diag-ring{flex:0 0 auto;width:62px;height:62px;border-radius:50%;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;background:#fff;box-shadow:0 2px 10px rgba(30,50,90,.08)}
+  .diag-ring b{font-size:20px;line-height:1;color:#15803d}
+  .diag-summary.bad .diag-ring b{color:#b91c1c}
+  .diag-ring span{font-size:9px;color:var(--muted);margin-top:2px}
+  .diag-summary-txt b{font-size:15px}
+  .diag-summary-txt div{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.6}
+  .diag-card{border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;
+    background:#fff;transition:.2s}
+  .diag-card.ok{border-left:3px solid #22c55e}
+  .diag-card.fail{border-left:3px solid #ef4444;background:#fffafa}
+  .diag-card-top{display:flex;align-items:center;gap:10px}
+  .diag-dot{flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
+    justify-content:center;font-size:16px;color:#fff;font-weight:700}
+  .diag-name{font-size:14px;font-weight:700;flex:1}
+  .diag-name small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+  .diag-status{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}
+  .diag-status.ok{background:#dcfce7;color:#15803d}
+  .diag-status.fail{background:#fee2e2;color:#b91c1c}
+  .diag-metrics{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:11px;padding-top:10px;
+    border-top:1px dashed var(--border);font-size:11px;color:var(--muted)}
+  .diag-metrics b{color:#475569;font-weight:600}
+  .diag-metrics .latency{color:#0891b2}
+  .diag-err{margin-top:8px;font-size:11px;color:#b91c1c;background:#fef2f2;padding:7px 10px;
+    border-radius:6px;word-break:break-all;line-height:1.6}
+  .diag-foot{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.7}
+  .diag-shimmer{animation:diagPulse 1.4s ease-in-out infinite}
+  @keyframes diagPulse{0%,100%{opacity:1}50%{opacity:.45}}
+  /* ===== 设置页卡片头 ===== */
+  /* 卡片实际嵌套在两列的 div 里，用后代选择器保证内边距生效（原 > 子选择器未命中导致文字贴边） */
+  .settings-grid .card{padding:24px;margin-bottom:0 !important}
+  /* 单列布局：卡片间距由外层 grid 的 gap 统一控制，更宽更舒展 */
+  .settings-grid{grid-template-columns:1fr !important}
+  .settings-grid .card{max-width:100%}
+  .sec-head{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+  .sec-ico{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;
+    justify-content:center;font-size:16px;flex:0 0 auto}
+  .sec-ico.indigo{background:#eef2ff;color:#4f46e5}
+  .sec-ico.blue{background:#e0f2fe;color:#0284c7}
+  .sec-ico.amber{background:#fef3c7;color:#d97706}
+  .sec-ico.teal{background:#ccfbf1;color:#0d9488}
+  .sec-head h2{font-size:16.5px;letter-spacing:-.2px}
+  .sec-desc{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:20px}
+  .page-title{display:flex;align-items:center;gap:12px}
+  .page-title h1{font-size:25px;font-weight:750;letter-spacing:-.5px}
+  .page-badge{font-size:11px;font-weight:700;color:var(--brand);background:#eef2ff;
+    padding:4px 11px;border-radius:20px}
+  .form-sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:6px 0 18px}
+  .switch-row,.toggle-row{transition:.2s}
+  /* ===== 账号列表 ===== */
+  .user-item{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--border);
+    border-radius:11px;margin-bottom:9px;background:#fff;transition:.2s}
+  .user-item:hover{border-color:#c7d2fe;background:#fafbff}
+  .user-item .ua{width:36px;height:36px;border-radius:10px;flex:0 0 auto;display:flex;align-items:center;
+    justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5);overflow:hidden}
+  .user-item .ua.avatar-svg{background:transparent;padding:0}
+  .user-item .ua.avatar-svg svg{width:100%;height:100%;display:block;border-radius:10px}
+  .user-item .uinfo{flex:1;min-width:0}
+  .user-item .uinfo b{font-size:13.5px;display:block}
+  .user-item .uinfo small{font-size:11px;color:var(--muted)}
+  .role-tag{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .role-tag.admin{background:#eef2ff;color:#4f46e5}
+  .role-tag.member{background:#f1f5f9;color:#64748b}
+  .u-actions{display:flex;gap:6px}
+  .u-actions button{border:none;background:#f1f4f9;width:28px;height:28px;border-radius:8px;cursor:pointer;
+    color:var(--muted);display:flex;align-items:center;justify-content:center;transition:.2s}
+  .u-actions button:hover{background:#e8ecf4;color:var(--text)}
+  .u-actions button.del:hover{background:#fee2e2;color:#dc2626}
+  .u-actions svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div class="page-title">
+    <h1>设置</h1>
+    <span class="page-badge"><svg class="ic" style="width:13px;height:13px;vertical-align:-2px"><use href="#i-settings"/></svg>偏好配置</span>
+  </div>
+  <div class="muted" style="font-size:13px;margin-top:5px;">配置邮件推送、定时任务与收益校准</div>
+</div>
+
+<div class="settings-grid" style="display:grid;grid-template-columns:1fr;gap:20px;align-items:start;">
+  {% if is_admin %}
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico indigo"><svg class="ic" style="width:18px;height:18px"><use href="#i-user"/></svg></span><h2>账号与权限</h2></div>
+      <div class="sec-desc">管理员可新增账号、修改账号信息与权限；<b>管理员</b>可查看并修改全部数据，<b>普通成员</b>仅能查看、不能修改任何信息</div>
+      <div id="userList" style="margin:6px 0 16px;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="openUserModal()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-plus"/></svg>新增账号</button>
+        <button class="btn btn-ghost" onclick="openPwdModal()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-edit"/></svg>修改我的密码</button>
+      </div>
+    </div>
+  {% endif %}
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico blue"><svg class="ic" style="width:18px;height:18px"><use href="#i-activity"/></svg></span><h2>网络诊断</h2></div>
+      <div class="sec-desc" style="margin-bottom:16px;">
+        抓不到净值时点这里，实时探测容器能否访问建行 / 邮储 / 浦发三家站点，<br>
+        并显示 HTTP 状态、响应耗时与出口 IP，便于定位 DNS 或网络问题。
+      </div>
+      <button class="btn btn-ghost" id="btn-diag" onclick="runDiag()" style="border-color:var(--brand);color:var(--brand);">
+        <svg class="ic"><use href="#i-activity"/></svg>检测三家数据源
+      </button>
+      <div id="diagLast" class="muted" style="font-size:11px;margin-top:10px;"></div>
+    </div>
+  <div class="card">
+    <div class="sec-head"><span class="sec-ico indigo"><svg class="ic" style="width:18px;height:18px"><use href="#i-mail"/></svg></span><h2>邮件推送配置</h2></div>
+    <div class="sec-desc">使用 QQ / 163 邮箱 SMTP，需在邮箱设置中开启 SMTP 并获取「授权码」（不是登录密码）</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+      <div class="form-row">
+        <label>SMTP 服务器</label>
+        <input type="text" id="s-host" value="{{ settings.smtp_host }}" placeholder="smtp.qq.com">
+        <div class="hint">QQ: smtp.qq.com / 163: smtp.163.com</div>
+      </div>
+      <div class="form-row">
+        <label>端口</label>
+        <input type="number" id="s-port" value="{{ settings.smtp_port }}" placeholder="465">
+        <div class="hint">SSL 用 465，STARTTLS 用 587</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>发件邮箱（账号）</label>
+      <input type="text" id="s-user" value="{{ settings.smtp_user }}" placeholder="yourname@qq.com">
+    </div>
+    <div class="form-row">
+      <label>SMTP 授权码</label>
+      <input type="password" id="s-pass" value="{{ settings.smtp_pass }}" placeholder="邮箱授权码">
+      <div class="hint">QQ邮箱：设置→账户→POP3/SMTP服务→开启并生成授权码</div>
+    </div>
+    <div class="form-row">
+      <label>发件人显示（可选）</label>
+      <input type="text" id="s-from" value="{{ settings.mail_from }}" placeholder="默认同发件邮箱">
+    </div>
+    <div class="form-row">
+      <label>收件邮箱（多个用逗号分隔）</label>
+      <input type="text" id="s-to" value="{{ settings.mail_to }}" placeholder="target@example.com">
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+      <button class="btn btn-ghost" onclick="testMail()">测试发送</button>
+    </div>
+  </div>
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico blue"><svg class="ic" style="width:18px;height:18px"><use href="#i-clock"/></svg></span><h2>每日推送</h2></div>
+      <div class="form-sep"></div>
+      <div class="form-row">
+        <label>推送开关</label>
+        <select id="s-enabled">
+          <option value="1" {% if settings.push_enabled=='1' %}selected{% endif %}>开启（每日自动发邮件）</option>
+          <option value="0" {% if settings.push_enabled=='0' %}selected{% endif %}>关闭（仅更新数据不发邮件）</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-row">
+          <label>推送时间 · 时</label>
+          <input type="number" id="s-hour" min="0" max="23" value="{{ settings.push_hour }}">
+        </div>
+        <div class="form-row">
+          <label>推送时间 · 分</label>
+          <input type="number" id="s-minute" min="0" max="59" value="{{ settings.push_minute }}">
+        </div>
+      </div>
+      <div class="hint">建议设在早上 9:00 左右，此时前一日净值公告已发布</div>
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="saveSettings()">保存定时设置</button>
+    </div>
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico amber"><svg class="ic" style="width:18px;height:18px"><use href="#i-alert"/></svg></span><h2>年化预警</h2></div>
+      <div class="sec-desc">有产品的七日年化跌破阈值时，程序会在每日任务结束后单独发一封预警邮件</div>
+      <div class="form-row">
+        <label>预警开关</label>
+        <select id="s-alert-enabled">
+          <option value="1" {% if settings.get('alert_enabled','1')=='1' %}selected{% endif %}>开启（低于阈值时发邮件提醒）</option>
+          <option value="0" {% if settings.get('alert_enabled','1')=='0' %}selected{% endif %}>关闭（只做检查不打扰）</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>预警阈值（七日年化 %）</label>
+        <input type="number" step="0.01" min="0" max="20" id="s-alert-annual"
+               value="{{ settings.get('alert_annual','1.0') }}" placeholder="如 1.0">
+        <div class="hint">低于这个值就提醒。按单只产品的七日年化判断，三家银行统一适用；待入账产品不参与判断</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn btn-primary" onclick="saveSettings()">保存预警设置</button>
+        <button class="btn btn-ghost" onclick="checkAlert()">立即检查并发送</button>
+      </div>
+    </div>
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico teal"><svg class="ic" style="width:18px;height:18px"><use href="#i-zap"/></svg></span><h2>收益校准</h2></div>
+      <div class="sec-desc">以三家银行 App 显示的累计收益为历史基准，程序在此基础上继续逐日滚动计算</div>
+      <div class="form-row">
+        <label>建行历史累计收益（元）</label>
+        <input type="number" step="0.01" id="s-hist-profit" value="{{ settings.historical_profit }}">
+        <div class="hint">建行 App 已显示的累计收益，当前 {{ settings.historical_profit or '0' }}。按建行持仓市值占比分摊</div>
+      </div>
+      <div class="form-row">
+        <label>邮储历史累计收益（元）</label>
+        <input type="number" step="0.01" id="s-psbc-hist-profit" value="{{ settings.psbc_historical_profit }}">
+        <div class="hint">邮储 App 已显示的累计收益，当前 {{ settings.psbc_historical_profit or '0' }}（天乐宝10号）。按邮储持仓市值占比分摊</div>
+      </div>
+      <div class="form-row">
+        <label>浦发历史累计收益（元）</label>
+        <input type="number" step="0.01" id="s-spdb-hist-profit" value="{{ settings.spdb_historical_profit }}">
+        <div class="hint">浦发 App「灵活+」已显示的累计收益，当前 {{ settings.spdb_historical_profit or '0' }}（3 只理财宝份额）。按浦发持仓市值占比分摊</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+        <div class="form-row">
+          <label>建行 App 昨日收益（参考）</label>
+          <input type="text" id="s-app-daily" value="{{ settings.app_yesterday_profit }}" placeholder="0.9">
+        </div>
+        <div class="form-row">
+          <label>建行 App 综合七日年化（参考）</label>
+          <input type="text" id="s-app-annual" value="{{ settings.app_overall_annual }}" placeholder="1.24">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+        <div class="form-row">
+          <label>邮储 App 昨日收益（参考）</label>
+          <input type="text" id="s-psbc-app-daily" value="{{ settings.psbc_app_yesterday_profit }}" placeholder="0.93">
+        </div>
+        <div class="form-row">
+          <label>邮储 App 七日年化（参考）</label>
+          <input type="text" id="s-psbc-app-annual" value="{{ settings.psbc_app_overall_annual }}" placeholder="1.33">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+        <div class="form-row">
+          <label>浦发 App 昨日收益（参考）</label>
+          <input type="text" id="s-spdb-app-daily" value="{{ settings.spdb_app_yesterday_profit }}" placeholder="0.37">
+        </div>
+        <div class="form-row">
+          <label>浦发 App 持仓七日年化（参考）</label>
+          <input type="text" id="s-spdb-app-annual" value="{{ settings.spdb_app_overall_annual }}" placeholder="1.41">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>参考数据日期</label>
+        <input type="text" id="s-app-date" value="{{ settings.app_ref_date }}" placeholder="2026-11-18">
+      </div>
+      <button class="btn btn-primary" style="margin-top:6px;" onclick="saveSettings()">保存校准</button>
+    </div>
+  {% if is_admin %}
+  <div class="card">
+      <div class="sec-head"><span class="sec-ico teal"><svg class="ic" style="width:18px;height:18px"><use href="#i-database"/></svg></span><h2>数据备份与恢复</h2></div>
+      <div class="sec-desc">把全部持仓、净值、支出记录及本页所有设置打包导出，或从备份文件整体恢复（覆盖当前数据）</div>
+      <div id="backupStat" class="muted" style="font-size:12px;margin-bottom:14px;line-height:1.9;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="exportData()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-export"/></svg> 导出备份</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-import"/></svg> 导入恢复</button>
+        <input type="file" id="importFile" accept=".json,application/json" style="display:none;" onchange="onImportFile(this)">
+      </div>
+      <div class="hint" style="margin-top:12px;">
+        备份文件包含邮箱授权码等敏感信息，请妥善保管；导入会<b>覆盖</b>当前全部数据，操作前建议先导出一份现有备份。
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 数据源检测报告弹窗 -->
+<div class="modal-mask" id="diagModal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head">
+      <h3><svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-activity"/></svg>数据源检测报告</h3>
+      <button class="modal-close" onclick="closeModal('diagModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="diagContent" class="diag-wrap">
+        <div class="diag-shimmer" style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">
+          <div style="margin-bottom:10px;"><svg class="ic" style="width:28px;height:28px;stroke-width:1.6"><use href="#i-activity"/></svg></div>正在检测三家银行数据源，请稍候…
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('diagModal')">关闭</button>
+      <button class="btn btn-primary" id="btn-diag-retry" onclick="runDiag()"><svg class="ic"><use href="#i-refresh"/></svg>重新检测</button>
+    </div>
+  </div>
+</div>
+
+<!-- 账号编辑弹窗（新增/编辑共用） -->
+<div class="modal-mask" id="userModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head">
+      <h3 id="userModalTitle"><svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-user"/></svg>新增账号</h3>
+      <button class="modal-close" onclick="closeModal('userModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="u-id">
+      <div class="form-row">
+        <label>用户名（登录用）</label>
+        <input type="text" id="u-username" placeholder="例如 f16335" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <label id="u-pwd-label">密码</label>
+        <input type="password" id="u-password" placeholder="至少 6 位" autocomplete="new-password">
+        <div class="hint" id="u-pwd-hint">留空表示不修改密码</div>
+      </div>
+      <div class="form-row">
+        <label>显示名称（可选）</label>
+        <input type="text" id="u-display" placeholder="例如 张三">
+      </div>
+      <div class="form-row">
+        <label>权限角色</label>
+        <select id="u-role">
+          <option value="member">普通成员（仅查看，不能修改）</option>
+          <option value="admin">管理员（查看 + 修改全部数据）</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('userModal')">取消</button>
+      <button class="btn btn-primary" id="btn-save-user" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改我的密码弹窗 -->
+<div class="modal-mask" id="pwdModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h3><svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-edit"/></svg>修改我的密码</h3>
+      <button class="modal-close" onclick="closeModal('pwdModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>当前密码</label>
+        <input type="password" id="p-old" placeholder="请输入当前密码" autocomplete="current-password">
+      </div>
+      <div class="form-row">
+        <label>新密码</label>
+        <input type="password" id="p-new" placeholder="至少 6 位" autocomplete="new-password">
+      </div>
+      <div class="form-row">
+        <label>确认新密码</label>
+        <input type="password" id="p-new2" placeholder="再次输入新密码" autocomplete="new-password">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('pwdModal')">取消</button>
+      <button class="btn btn-primary" id="btn-save-pwd" onclick="saveMyPassword()">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导入确认弹窗 -->
+<div class="modal-mask" id="importConfirmModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head">
+      <h3><svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-import"/></svg>确认导入备份</h3>
+      <button class="modal-close" onclick="closeModal('importConfirmModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="importDetail" style="font-size:13px;line-height:1.7;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('importConfirmModal')">取消</button>
+      <button class="btn btn-primary" id="btn-do-import" onclick="doImport()"><svg class="ic"><use href="#i-import"/></svg> 确认导入</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DIAG_META={
+  '建行':{short:'CCB',color:'#1f5fa8',icon:'建'},
+  '邮储':{short:'PSBC',color:'#1e7b45',icon:'邮'},
+  '浦发':{short:'SPDB',color:'#6a3bb0',icon:'浦'}
+};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ===== 账号与权限 ===== */
+async function loadUsers(){
+  const box=document.getElementById('userList');
+  if(!box)return;
+  try{
+    const r=await api('/api/users');
+    if(!r.ok){box.innerHTML='<div class="muted" style="font-size:12px;">账号列表加载失败</div>';return;}
+    const me=CURRENT_USER&&CURRENT_USER.id;
+    box.innerHTML=r.users.map(u=>{
+      const isMe=u.id===me;
+      const avatar='<span class="ua avatar-svg"><svg><use href="#avatar-'+(u.role==='admin'?'admin':'member')+'"/></svg></span>';
+      return '<div class="user-item">'+
+        avatar+
+        '<div class="uinfo"><b>'+esc(u.display_name||u.username)+(isMe?' <span class="muted" style="font-weight:400;font-size:11px;">（我）</span>':'')+'</b>'+
+        '<small>'+esc(u.username)+(u.last_login?(' · 上次登录 '+esc(u.last_login)):'')+'</small></div>'+
+        '<span class="role-tag '+u.role+'">'+(u.role==='admin'?'管理员':'成员')+'</span>'+
+        '<div class="u-actions">'+
+          '<button title="编辑" onclick="openUserModal('+u.id+')"><svg class="ic"><use href="#i-edit"/></svg></button>'+
+          (isMe?'':'<button class="del" title="删除" onclick="delUser('+u.id+')"><svg class="ic"><use href="#i-trash"/></svg></button>')+
+        '</div></div>';
+    }).join('');
+  }catch(e){box.innerHTML='<div class="muted" style="font-size:12px;">账号列表加载失败</div>';}
+}
+function openUserModal(id){
+  document.getElementById('u-id').value=id||'';
+  const m=document.getElementById('userModalTitle');
+  if(id){
+    m.innerHTML='<svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-edit"/></svg>编辑账号';
+    document.getElementById('u-pwd-label').textContent='新密码';
+    document.getElementById('u-pwd-hint').textContent='留空表示不修改密码';
+    const list=_usersCache||[];
+    const u=list.find(x=>x.id===id)||{};
+    document.getElementById('u-username').value=u.username||'';
+    document.getElementById('u-password').value='';
+    document.getElementById('u-display').value=u.display_name||'';
+    document.getElementById('u-role').value=u.role||'member';
+  }else{
+    m.innerHTML='<svg class="ic" style="width:16px;height:16px;vertical-align:-2px"><use href="#i-user"/></svg>新增账号';
+    document.getElementById('u-pwd-label').textContent='密码';
+    document.getElementById('u-pwd-hint').textContent='至少 6 位';
+    document.getElementById('u-username').value='';
+    document.getElementById('u-password').value='';
+    document.getElementById('u-display').value='';
+    document.getElementById('u-role').value='member';
+  }
+  openModal('userModal');
+}
+let _usersCache=[];
+async function loadUsersInit(){await loadUsers();try{const r=await api('/api/users');if(r.ok)_usersCache=r.users;}catch(e){}}
+async function saveUser(){
+  const id=document.getElementById('u-id').value;
+  const body={
+    username:document.getElementById('u-username').value.trim(),
+    password:document.getElementById('u-password').value,
+    display_name:document.getElementById('u-display').value.trim(),
+    role:document.getElementById('u-role').value
+  };
+  if(!body.username){toast('请填写用户名',false);return;}
+  if(!id&&body.password.length<6){toast('密码至少 6 位',false);return;}
+  const btn=document.getElementById('btn-save-user');
+  btn.disabled=true;btn.textContent='保存中…';
+  try{
+    const r=await api(id?('/api/users/'+id):'/api/users',{method:'POST',body:JSON.stringify(body)});
+    if(r.ok){closeModal('userModal');toast(r.message||'已保存');loadUsersInit();}
+    else toast(r.error||'保存失败',false);
+  }catch(e){toast('保存失败：'+e.message,false);}
+  finally{btn.disabled=false;btn.textContent='保存';}
+}
+function delUser(id){
+  confirmModal('确定删除这个账号吗？删除后该账号将无法登录。',async()=>{
+    const r=await api('/api/users/'+id,{method:'DELETE'});
+    if(r.ok){toast('账号已删除');loadUsersInit();}else toast(r.error||'删除失败',false);
+  },{title:'删除账号',okText:'删除',danger:true});
+}
+function openPwdModal(){
+  document.getElementById('p-old').value='';
+  document.getElementById('p-new').value='';
+  document.getElementById('p-new2').value='';
+  openModal('pwdModal');
+}
+async function saveMyPassword(){
+  const old_password=document.getElementById('p-old').value;
+  const new_password=document.getElementById('p-new').value;
+  const new2=document.getElementById('p-new2').value;
+  if(!old_password){toast('请输入当前密码',false);return;}
+  if(new_password.length<6){toast('新密码至少 6 位',false);return;}
+  if(new_password!==new2){toast('两次输入的新密码不一致',false);return;}
+  const btn=document.getElementById('btn-save-pwd');
+  btn.disabled=true;btn.textContent='修改中…';
+  try{
+    const r=await api('/api/auth/password',{method:'POST',body:JSON.stringify({old_password,new_password})});
+    if(r.ok){closeModal('pwdModal');toast('密码已修改');}
+    else toast(r.error||'修改失败',false);
+  }catch(e){toast('修改失败：'+e.message,false);}
+  finally{btn.disabled=false;btn.textContent='确认修改';}
+}
+// 普通成员：整页只读——禁用所有输入/下拉，隐藏动作按钮
+function applyReadonly(){
+  if(typeof IS_ADMIN!=='undefined'&&IS_ADMIN)return;
+  document.querySelectorAll('#content input, .container input, .container select, .container textarea').forEach(function(el){
+    if(el.type==='file')return;
+    el.disabled=true;
+  });
+  document.querySelectorAll('.container button').forEach(function(btn){
+    const t=(btn.textContent||'');
+    if(/保存|测试|检测|立即|导入|导出|新增|修改|确认/.test(t))btn.style.display='none';
+  });
+  const note=document.createElement('div');
+  note.style.cssText='background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#64748b;margin-bottom:18px;';
+  note.innerHTML='<svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-eye"/></svg> 当前为只读成员账号，可查看配置但不能修改。';
+  const c=document.querySelector('.container');
+  if(c)c.insertBefore(note,c.firstChild);
+}
+
+/* ===== 数据备份与恢复 ===== */
+const BACKUP_LABELS={settings:'设置项',products:'产品',holdings:'持仓',capital_additions:'追加本金',withdrawals:'支出记录',yields:'净值数据',profit_snapshots:'收益快照'};
+async function loadBackupStat(){
+  const box=document.getElementById('backupStat');
+  try{
+    const r=await api('/api/data/export');
+    if(!r.ok){box.textContent='统计加载失败';return;}
+    const t=r.data.tables;
+    const parts=['持仓 <b>'+((t.holdings||[]).length)+'</b> 笔','净值 <b>'+((t.yields||[]).length)+'</b> 条','设置 <b>'+((t.settings||[]).length)+'</b> 项'];
+    box.innerHTML='当前可备份：'+parts.join(' · ')+(r.data.exported_at?('<br>数据时间：'+esc(r.data.exported_at)):'');
+  }catch(e){box.textContent='统计加载失败';}
+}
+async function exportData(){
+  try{
+    toast('正在打包数据…');
+    const r=await api('/api/data/export');
+    if(!r.ok){toast(r.error||'导出失败',false);return;}
+    const blob=new Blob([JSON.stringify(r.data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const d=new Date();
+    const stamp=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+    a.href=url; a.download='理财监控备份_'+stamp+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast('备份已下载');
+  }catch(e){toast('导出失败：'+e.message,false);}
+}
+let _pendingImport=null;
+function onImportFile(input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    let data;
+    try{data=JSON.parse(reader.result);}
+    catch(e){toast('文件不是有效的 JSON',false);return;}
+    if(!data||data.format!=='lqb-backup'||!data.tables){toast('不是本系统的备份文件',false);return;}
+    _pendingImport=data;
+    const t=data.tables;
+    const nHold=(t.holdings||[]).length,nSet=(t.settings||[]).length;
+    const rows=Object.keys(BACKUP_LABELS).map(k=>{
+      const c=(t[k]||[]).length;
+      return c?('<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border)"><span>'+BACKUP_LABELS[k]+'</span><b>'+c+'</b></div>'):'';
+    }).join('');
+    document.getElementById('importDetail').innerHTML=
+      '<div style="color:#e0392b;font-weight:700;margin-bottom:10px;">导入将覆盖当前全部数据，此操作不可撤销。</div>'+
+      '备份时间：<b>'+esc(data.exported_at||'未知')+'</b><br>'+
+      '含持仓 <b>'+nHold+'</b> 笔、设置 <b>'+nSet+'</b> 项'+
+      '<div style="margin-top:12px;">'+rows+'</div>';
+    openModal('importConfirmModal');
+  };
+  reader.readAsText(file);
+}
+async function doImport(){
+  if(!_pendingImport)return;
+  const btn=document.getElementById('btn-do-import');
+  if(btn){btn.disabled=true;btn.textContent='导入中…';}
+  try{
+    const r=await api('/api/data/import',{method:'POST',body:JSON.stringify({data:_pendingImport,mode:'replace'})});
+    if(r.ok){
+      closeModal('importConfirmModal');
+      toast('导入成功，正在刷新页面…');
+      setTimeout(()=>location.reload(),900);
+    }else{
+      toast(r.error||'导入失败',false);
+      if(btn){btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-import"/></svg> 确认导入';}
+    }
+  }catch(e){
+    toast('导入失败：'+e.message,false);
+    if(btn){btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-import"/></svg> 确认导入';}
+  }
+}
+document.addEventListener('DOMContentLoaded',function(){
+  applyReadonly();
+  if(typeof IS_ADMIN!=='undefined'&&IS_ADMIN){loadBackupStat();loadUsersInit();}
+});
+
+async function saveSettings(){
+  const body={
+    smtp_host:document.getElementById('s-host').value.trim(),
+    smtp_port:document.getElementById('s-port').value.trim(),
+    smtp_user:document.getElementById('s-user').value.trim(),
+    smtp_pass:document.getElementById('s-pass').value.trim(),
+    mail_from:document.getElementById('s-from').value.trim(),
+    mail_to:document.getElementById('s-to').value.trim(),
+    push_enabled:document.getElementById('s-enabled').value,
+    push_hour:document.getElementById('s-hour').value.trim(),
+    push_minute:document.getElementById('s-minute').value.trim(),
+    alert_enabled:document.getElementById('s-alert-enabled').value,
+    alert_annual:document.getElementById('s-alert-annual').value.trim(),
+    historical_profit:document.getElementById('s-hist-profit').value.trim(),
+    psbc_historical_profit:document.getElementById('s-psbc-hist-profit').value.trim(),
+    spdb_historical_profit:document.getElementById('s-spdb-hist-profit').value.trim(),
+    app_yesterday_profit:document.getElementById('s-app-daily').value.trim(),
+    app_overall_annual:document.getElementById('s-app-annual').value.trim(),
+    app_ref_date:document.getElementById('s-app-date').value.trim(),
+    psbc_app_yesterday_profit:document.getElementById('s-psbc-app-daily').value.trim(),
+    psbc_app_overall_annual:document.getElementById('s-psbc-app-annual').value.trim(),
+    spdb_app_yesterday_profit:document.getElementById('s-spdb-app-daily').value.trim(),
+    spdb_app_overall_annual:document.getElementById('s-spdb-app-annual').value.trim(),
+  };
+  const res=await api('/api/settings',{method:'POST',body:JSON.stringify(body)});
+  toast(res.ok?'设置已保存':(res.error||'保存失败'),res.ok);
+}
+async function runDiag(){
+  const btn=document.getElementById('btn-diag');
+  const retry=document.getElementById('btn-diag-retry');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner" style="border-color:#bfdbfe;border-top-color:var(--brand)"></span> 检测中…';}
+  if(retry){retry.disabled=true;retry.innerHTML='<span class="spinner" style="border-color:#bfdbfe;border-top-color:#fff"></span> 检测中…';}
+  document.getElementById('diagContent').innerHTML=
+    '<div class="diag-shimmer" style="text-align:center;padding:34px;color:var(--muted);font-size:13px;">'+
+    '<div style="margin-bottom:10px;"><svg class="ic" style="width:30px;height:30px;stroke-width:1.6"><use href="#i-activity"/></svg></div>正在逐个探测建行 / 邮储 / 浦发站点，约需数秒…</div>';
+  openModal('diagModal');
+
+  let res;
+  try{
+    res=await api('/api/diag');
+  }catch(e){
+    document.getElementById('diagContent').innerHTML=
+      '<div class="diag-summary bad"><div class="diag-ring"><b>!</b></div>'+
+      '<div class="diag-summary-txt"><b>检测请求失败</b><div>'+esc(e&&e.message||e)+'</div></div></div>';
+    if(btn){btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-activity"/></svg> 检测三家数据源';}
+    if(retry){retry.disabled=false;retry.innerHTML='<svg class="ic"><use href="#i-refresh"/></svg> 重新检测';}
+    return;
+  }
+  if(btn){btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-activity"/></svg> 检测三家数据源';}
+  if(retry){retry.disabled=false;retry.innerHTML='<svg class="ic"><use href="#i-refresh"/></svg> 重新检测';}
+  if(!res.ok){
+    document.getElementById('diagContent').innerHTML=
+      '<div class="diag-summary bad"><div class="diag-ring"><b>!</b></div>'+
+      '<div class="diag-summary-txt"><b>检测失败</b><div>'+esc(res.error||'未知错误')+'</div></div></div>';
+    return;
+  }
+
+  const targets=res.targets||[];
+  const okCount=targets.filter(function(t){return t.ok;}).length;
+  const allOk=!!res.all_ok;
+  const recovered=targets.filter(function(t){return t.recovered;});
+  const now=new Date().toLocaleString('zh-CN',{hour12:false});
+
+  // 汇总环
+  let summarySub, summaryTitle;
+  if(allOk && recovered.length){
+    summaryTitle='<svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-check"/></svg> 三家数据源全部正常';
+    summarySub='网络有短暂抖动，已自动重试恢复（'+recovered.map(function(t){return t.name;}).join('、')+'）';
+  }else if(allOk){
+    summaryTitle='<svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-check"/></svg> 三家数据源全部正常';
+    summarySub='网络连接正常，净值抓取不受影响';
+  }else{
+    summaryTitle='<svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-alert"/></svg> 部分数据源不可达';
+    summarySub='部分站点重试后仍异常，可能影响对应银行的净值抓取';
+  }
+  let html='<div class="diag-summary'+(allOk?'':' bad')+'">'+
+    '<div class="diag-ring"><b>'+okCount+'/'+targets.length+'</b><span>可达</span></div>'+
+    '<div class="diag-summary-txt"><b>'+summaryTitle+'</b>'+
+    '<div>'+summarySub+'</div></div></div>';
+
+  targets.forEach(function(t){
+    const m=DIAG_META[t.name]||{short:'BANK',color:'#64748b',icon:(t.name||'银').slice(0,1)};
+    const metrics=[];
+    if(t.http_code) metrics.push('<span>HTTP <b>'+esc(t.http_code)+'</b></span>');
+    if(t.seconds) metrics.push('<span class="latency">耗时 <b>'+esc(t.seconds)+'s</b></span>');
+    if(t.ip) metrics.push('<span>出口 IP <b>'+esc(t.ip)+'</b></span>');
+    if(t.attempts>1) metrics.push('<span>探测 <b>'+t.attempts+' 次</b></span>');
+    let err='';
+    if(!t.ok){
+      const msg=t.error||('HTTP '+t.http_code||'无响应');
+      err='<div class="diag-err">'+esc(msg)+'（已重试 '+t.attempts+' 次）</div>';
+    }
+    const badge=t.ok
+      ? (t.recovered?'<svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-check"/></svg> 重试后恢复':'<svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-check"/></svg> 可达')
+      : '<svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-x"/></svg> 异常';
+    html+='<div class="diag-card '+(t.ok?'ok':'fail')+'">'+
+      '<div class="diag-card-top">'+
+        '<div class="diag-dot" style="background:'+m.color+'">'+m.icon+'</div>'+
+        '<div class="diag-name">'+esc(t.name)+' '+m.short+'<small>'+esc(t.url)+'</small></div>'+
+        '<div class="diag-status '+(t.ok?'ok':'fail')+'">'+badge+'</div>'+
+      '</div>'+
+      '<div class="diag-metrics">'+(metrics.join('')||'<span>无响应数据</span>')+'</div>'+
+      err+'</div>';
+  });
+
+  html+='<div class="diag-foot">检测时间 '+esc(now)+' · 结果仅反映当前容器到银行站点的网络连通性</div>';
+  document.getElementById('diagContent').innerHTML=html;
+  const last=document.getElementById('diagLast');
+  if(last) last.textContent='上次检测：'+now+'（'+okCount+'/'+targets.length+' 可达）';
+}
+
+async function checkAlert(){
+  const v=document.getElementById('s-alert-annual').value.trim();
+  if(!v||parseFloat(v)<0){toast('请先填写预警阈值',false);return;}
+  toast('正在检查...');
+  const res=await api('/api/alert/check',{method:'POST',body:JSON.stringify({alert_annual:v,send:true})});
+  if(!res.ok){toast(res.error||res.message||'检查失败',false);return;}
+  if(res.count===0){infoModal('暂无预警','当前没有产品低于 '+res.threshold.toFixed(2)+'%，不需要发提醒。');return;}
+  const rows=res.products.map(p=>
+    '<li style="margin:4px 0;">'+p.product_name+'（'+p.bank_label+'）'+p.latest_annual.toFixed(4)+'%</li>').join('');
+  infoModal('检出 '+res.count+' 只低于阈值',
+    '<div style="text-align:left;">'+(res.email_sent?'预警邮件已发送。':'')+
+    '<ul style="margin:6px 0 0;padding-left:18px;">'+rows+'</ul></div>');
+}
+
+async function testMail(){
+  const to=document.getElementById('s-to').value.trim();
+  toast('正在测试发送...');
+  const res=await api('/api/mail/test',{method:'POST',body:JSON.stringify({to})});
+  toast(res.ok?'测试邮件已发送':(res.error||'发送失败'),res.ok);
+}
+</script>
+{% endblock %}

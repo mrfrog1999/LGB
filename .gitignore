@@ -1,0 +1,17 @@
+# 数据库与运行时数据（含邮箱授权码、密码哈希等敏感信息，绝不入库）
+data/
+*.db
+*.db-journal
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 环境变量与本地配置
+.env
+
+# 编辑器/系统文件
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <title>{% block title %}现金理财监控{% endblock %}</title>
+  <style>
+    :root{
+      --bg:#f4f6fb; --card:#fff; --border:#e9edf4; --text:#1e293b;
+      --muted:#8b97ab; --brand:#4f46e5; --brand2:#6366f1;
+      --up:#e0392b; --down:#16a34a;
+      --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.05);
+      --shadow-hover:0 4px 10px rgba(16,24,40,.05),0 16px 40px rgba(16,24,40,.1);
+      --radius:16px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html{-webkit-text-size-adjust:100%;text-size-adjust:100%;max-width:100%}
+    html,body{overflow-x:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;
+      background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;
+      background-image:radial-gradient(1200px 420px at 12% -8%,rgba(99,102,241,.08),transparent 60%),
+                       radial-gradient(1000px 380px at 92% -12%,rgba(14,165,233,.07),transparent 60%);
+      background-attachment:fixed;
+      /* 禁止双击缩放：交互元素统一用 manipulation，双击只触发点击不做缩放 */
+      touch-action:manipulation;-webkit-touch-callout:none}
+    button,.btn,a,input,select,label{touch-action:manipulation}
+    a{color:inherit;text-decoration:none}
+    /* 统一线性图标：继承 currentColor，自动融入主题色 */
+    svg.ic{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:0 0 auto}
+    .topbar{background:rgba(255,255,255,.82);backdrop-filter:saturate(180%) blur(18px);
+      -webkit-backdrop-filter:saturate(180%) blur(18px);
+      border-bottom:1px solid rgba(233,237,244,.9);padding:0 32px;height:66px;
+      display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+    .logo{display:flex;align-items:center;gap:11px;font-size:17px;font-weight:700;letter-spacing:-.2px}
+    .logo .dot{width:30px;height:30px;border-radius:9px;
+      background:linear-gradient(135deg,#6366f1,#4f46e5 55%,#4338ca);
+      box-shadow:0 4px 12px rgba(79,70,229,.35),inset 0 1px 1px rgba(255,255,255,.3);
+      position:relative;display:flex;align-items:center;justify-content:center}
+    .logo .dot svg{width:17px;height:17px;color:#fff;stroke-width:2.6}
+    .nav{display:flex;gap:4px;background:#eef1f7;padding:4px;border-radius:12px}
+    .nav a{padding:7px 18px;border-radius:9px;color:var(--muted);font-weight:600;font-size:13.5px;transition:.2s}
+    .nav a:hover{color:var(--text)}
+    .nav a.active{background:#fff;color:var(--brand);box-shadow:0 1px 4px rgba(16,24,40,.1)}
+    .user-chip{display:flex;align-items:center;gap:9px;margin-left:6px}
+    .user-avatar{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      font-size:13px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5);flex:0 0 auto;overflow:hidden}
+    .user-avatar.avatar-svg{background:transparent;padding:0}
+    .user-avatar.avatar-svg svg{width:100%;height:100%;display:block;border-radius:9px}
+    .user-meta{display:flex;flex-direction:column;line-height:1.25}
+    .user-meta b{font-size:12.5px;font-weight:700;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .user-role{font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700;margin-top:2px;width:fit-content}
+    .user-role.admin{background:#eef2ff;color:#4f46e5}
+    .user-role.member{background:#f1f5f9;color:#64748b}
+    .btn-logout{background:#f1f4f9;border:none;width:30px;height:30px;border-radius:9px;cursor:pointer;
+      color:var(--muted);display:flex;align-items:center;justify-content:center;transition:.2s}
+    .btn-logout:hover{background:#fee2e2;color:#dc2626}
+    .btn-logout svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .container{max-width:1360px;margin:0 auto;padding:30px 32px 64px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+      transition:box-shadow .25s ease,transform .25s ease}
+    .btn{border:none;border-radius:10px;padding:10px 18px;font-size:14px;cursor:pointer;font-weight:600;
+      transition:all .2s ease;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+    .btn-primary{background:linear-gradient(135deg,var(--brand),#4338ca);color:#fff;
+      box-shadow:0 4px 12px rgba(79,70,229,.28)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(79,70,229,.38)}
+    .btn-ghost{background:#f1f4f9;color:var(--text)}
+    .btn-ghost:hover{background:#e8ecf4;transform:translateY(-1px)}
+    .btn-danger{background:#fef2f2;color:#dc2626}
+    .btn-danger:hover{background:#fee2e2}
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+    .muted{color:var(--muted)}
+    .up{color:var(--up)} .down{color:var(--down)}
+    /* 弹窗 */
+    .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);
+      -webkit-backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+    .modal-mask.show{display:flex;animation:fadeIn .2s ease}
+    .modal{background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;overflow:auto;
+      box-shadow:0 24px 70px rgba(15,23,42,.28);animation:modalUp .25s cubic-bezier(.2,.8,.2,1)}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes modalUp{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+    .modal-head{padding:22px 26px;border-bottom:1px solid var(--border);display:flex;
+      justify-content:space-between;align-items:center}
+    .modal-head h3{font-size:17px;letter-spacing:-.2px}
+    .modal-close{background:#f1f4f9;border:none;width:30px;height:30px;border-radius:9px;
+      font-size:20px;color:var(--muted);cursor:pointer;line-height:1;transition:.2s}
+    .modal-close:hover{background:#e8ecf4;color:var(--text)}
+    .modal-body{padding:26px}
+    .modal-foot{padding:16px 26px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+    .form-row{margin-bottom:18px}
+    .form-row label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:#475569}
+    .form-row input,.form-row select{width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:10px;
+      font-size:14px;font-family:inherit;outline:none;transition:.2s;background:#fbfcfe}
+    .form-row input:focus,.form-row select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(79,70,229,.1)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7}
+    /* toast */
+    #toast{position:fixed;top:82px;right:24px;z-index:100;display:flex;flex-direction:column;gap:10px}
+    .toast-item{padding:13px 18px;border-radius:12px;background:#fff;border:1px solid var(--border);
+      box-shadow:var(--shadow-hover);min-width:220px;font-size:14px;font-weight:500;animation:slideIn .25s ease}
+    .toast-item.ok{border-left:4px solid var(--down)}
+    .toast-item.err{border-left:4px solid var(--up)}
+    @keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+    .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+      border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* 银行标签页 */
+    .bank-tabs{display:flex;gap:5px;background:#eef1f7;padding:5px;border-radius:12px;margin-bottom:18px}
+    .bank-tab{flex:1;padding:10px;border:none;background:transparent;border-radius:9px;
+      font-size:14px;font-weight:600;color:#64748b;cursor:pointer;transition:.2s;font-family:inherit}
+    .bank-tab.active{background:#fff;box-shadow:0 2px 8px rgba(16,24,40,.1)}
+    .bank-tab.active[data-bank="ccb"]{color:#1565c0}
+    .bank-tab.active[data-bank="psbc"]{color:#2e7d32}
+    .bank-tab.active[data-bank="spdb"]{color:#6d28d9}
+    .badge{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:7px;vertical-align:middle;font-weight:700;letter-spacing:.2px}
+    .badge-ccb{background:#e3f2fd;color:#1565c0}
+    .badge-psbc{background:#e8f5e9;color:#2e7d32}
+    .badge-spdb{background:#ede9fe;color:#6d28d9}
+    .badge-pending{background:#fff7ed;color:#b45309}
+    .badge-settled{background:#eff6ff;color:#1d4ed8}
+    .badge-earning{background:#ecfdf5;color:#047857}
+    .prod-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f4f8;transition:.15s;border-radius:8px}
+    .prod-item:hover{background:#f6f8fc}
+    .prod-item.selected{background:#eef2ff;box-shadow:inset 3px 0 0 var(--brand)}
+    .prod-empty{padding:18px;text-align:center;font-size:13px;color:var(--muted)}
+    @media (max-width:900px){
+      .topbar{padding:8px 14px;height:auto;min-height:54px;flex-wrap:wrap;gap:6px;
+        padding-top:calc(8px + env(safe-area-inset-top))}
+      .topbar .logo{font-size:16px}
+      .nav a{padding:6px 12px;font-size:13px}
+      .user-chip{gap:6px}
+      .user-meta{display:none}
+      .user-avatar{width:28px;height:28px;font-size:12px}
+      .container{padding:16px 12px calc(48px + env(safe-area-inset-bottom))}
+      .summary-grid{grid-template-columns:1fr 1fr !important;gap:10px !important}
+      .summary-grid > *, .bank-grid > *, .split-grid > *{min-width:0}
+      .bank-grid{grid-template-columns:1fr !important;gap:12px !important}
+      .split-grid{grid-template-columns:1fr !important;gap:0 !important}
+      /* 输入框字号 ≥16px：iOS 聚焦时不会自动放大页面 */
+      input,select,textarea{font-size:16px !important;}
+      .form-row label{font-size:13px}
+      .btn{min-height:42px}
+      .modal-mask{padding:0;align-items:flex-end}
+      .modal{max-width:100% !important;border-radius:16px 16px 0 0;max-height:92vh;
+        padding-bottom:env(safe-area-inset-bottom)}
+      .modal-body{padding:18px 16px}
+      .modal-foot{padding:12px 16px;position:sticky;bottom:0;background:#fff;
+        border-top:1px solid var(--border)}
+      .modal-foot .btn{flex:1;justify-content:center}
+      .bank-tabs{flex-wrap:nowrap;gap:4px;padding:4px}
+      .bank-tab{min-width:0;padding:9px 6px;font-size:13px;white-space:nowrap}
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<!-- 统一线性图标库（内联 SVG sprite，全站复用） -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+<symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6"/><path d="M21 7H8a2 2 0 0 0 0 4h13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 13h.01"/></symbol>
+<symbol id="i-bar-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7" rx="1"/><rect x="12" y="7" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="5" rx="1"/></symbol>
+<symbol id="i-trending-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 8-8"/><path d="M17 7h4v4"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 16v4M17 18h4"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></symbol>
+<symbol id="i-import" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+<symbol id="i-export" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="avatar-admin" viewBox="0 0 1024 1024"><path d="M511.990738 510.660058H1.33068A510.660058 510.660058 0 1 0 511.990738 0 510.660058 510.660058 0 0 0 1.33068 510.660058z" fill="#1296db"/><path d="M496.041101 430.881001h31.917798v95.753392h-31.917798z" fill="#F4BAC2"/><path d="M512.003087 223.418406a223.418406 223.418406 0 1 0 223.418407 223.418407V223.418406z" fill="#FFFFFF"/><path d="M400.293884 494.698072a15.078983 15.078983 0 0 1-15.955811-15.955812V414.919015a15.955811 15.955811 0 0 1 31.917797 0v63.835595a15.078983 15.078983 0 0 1-15.961986 15.943462z m111.709203 0a15.078983 15.078983 0 0 1-15.955811-15.955812V414.919015a15.955811 15.955811 0 0 1 31.917798 0v63.835595a15.078983 15.078983 0 0 1-15.961987 15.943462z" fill="#1296db"/><path d="M208.256063 921.250504c0-122.879506 101.069937-187.165865 223.949444-187.165865h159.582811c122.879506 0 222.072289 65.453405 222.07229 188.332911 0 0-109.486257 101.934416-300.097688 101.563925s-305.506856-102.730972-305.506857-102.730971z" fill="#FFFFFF"/></symbol>
+<symbol id="avatar-member" viewBox="0 0 1024 1024"><path d="M1024 512A512 512 0 1 1 512 0a512 512 0 0 1 512 512z" fill="#fdecf4"/><path d="M694.857143 388.022857v91.428572a192 192 0 0 1-190.537143 191.634285h-10.971429a176.274286 176.274286 0 0 1-58.88-9.874285 189.074286 189.074286 0 0 1-95.451428-69.851429c0-2.194286-2.56-4.022857-3.657143-5.851429a323.291429 323.291429 0 0 1-31.085714-126.902857v-66.194285c0-12.8 0-25.6 1.828571-38.4v-2.56-16.091429c0-14.628571 1.828571-29.257143 2.194286-44.251429s0-29.622857 0-45.348571A226.377143 226.377143 0 0 0 292.571429 178.834286l48.274285 7.68a438.857143 438.857143 0 0 0 113.737143 13.165714 133.12 133.12 0 0 1 20.48 0 159.451429 159.451429 0 0 1 18.651429 0h10.971428a189.805714 189.805714 0 0 1 73.142857 14.994286 190.902857 190.902857 0 0 1 117.028572 155.794285 77.165714 77.165714 0 0 1 0 9.142858 67.657143 67.657143 0 0 1 0 8.411428zM882.102857 855.405714v10.24a512 512 0 0 1-740.205714 0v-10.24a118.857143 118.857143 0 0 1 118.491428-118.491428h503.588572a118.491429 118.491429 0 0 1 118.125714 118.491428z" fill="#fcb6d7"/></symbol>
+<symbol id="logo-ccb" viewBox="0 0 1024 1024"><path d="M885.81977 400.744383L591.037951 106.667564c-61.054962-61.054962-134.685917-57.246965-160.669901-52.990967C198.564193 91.819574 21.798302 293.00045 21.798302 535.5903c0 269.756834 218.652865 488.4097 488.377699 488.4097 263.388838 0 478.009706-210.109871 488.0577-471.12971 0.096-3.071998-0.895999-12.031993-7.359996-16.09599-7.839995-4.799997-23.295986-3.007998-23.295985-3.007998H778.556836s-17.887989 0-23.487986 2.623998c-3.583998 1.631999-8.639995 5.535997-8.639994 5.535997L516.095997 772.163155a9.727994 9.727994 0 0 1-13.567991 0l-231.580858-231.549858a9.599994 9.599994 0 0 1 0-13.566991l231.580858-231.580858a9.535994 9.535994 0 0 1 13.567991 0L728.572867 507.910318s11.199993 9.855994 21.471987 12.607992c9.759994 2.591998 24.063985-7.263996 24.063985-7.263996l111.709931-112.509931z" fill="#005BAB"/><path d="M993.369704 249.801476L835.259801 92.427573C658.65391-77.938322 454.497035 39.372606 454.497035 39.372606s86.718947-46.590971 197.692879 70.110957l261.180839 262.364838 77.086953-76.254953s9.311994-11.615993 11.455993-22.143986c2.047999-9.855994-8.543995-23.647985-8.543995-23.647986z" fill="#005BAB"/></symbol>
+<symbol id="logo-psbc" viewBox="0 0 1024 1024"><path d="M598.203733 36.522667l-34.56 141.738666h-168.260266v89.941334h204.8l42.632533-137.813334h360.96L1024 36.522667H598.203733z m-257.536 141.738666l-66.935466 289.792H168.311467v89.941334h91.204266l-14.199466 49.902933H168.311467v93.883733h60.808533L168.311467 985.429333h227.089066v-93.866666h-150.084266l12.151466-49.937067h137.9328v-95.863467h-115.592533l10.171733-39.936h105.4208v-97.928533H306.176l12.151467-49.92h77.056v-89.924267h-58.88l12.2368-51.968h46.6432v-93.952h-28.416l14.216533-53.930666h14.199467v-89.941334h-54.715734z m338.568534 2.048l-42.564267 141.824H395.400533v93.9008h287.914667l38.536533-145.800533H973.312l20.292267-89.924267h-314.368zM614.4 468.053333l-60.808533 277.7088h-158.208v95.863467h196.676266l66.952534-285.696h255.488l18.244266-87.876267H614.4z m-218.999467 0v89.941334h87.159467l-10.103467 49.902933h-77.056v97.928533h111.547734l50.688-237.7728h-162.235734z m-344.712533 0L0 701.661867h168.311467v-93.883734H79.104l12.151467-49.92h77.056v-89.941333 517.393067-517.376H50.688v0.119466z m640.768 139.844267l-64.904533 283.648H395.383467v93.883733H669.184l64.904533-279.671466h150.016l18.2272-97.928534H691.456v0.068267z" fill="#128B3E"/></symbol>
+<symbol id="logo-spdb" viewBox="0 0 1325 1024"><path d="M816.188235 411.105882l3.011765-3.011764c64.752941-52.705882 141.552941-48.188235 167.152941-43.670589-10.541176-30.117647-57.223529-131.011765-194.258823-131.011764-61.741176 0-118.964706 28.611765-158.117647 76.8-25.6 33.129412-42.164706 72.282353-45.176471 114.447059-10.541176 120.470588-75.294118 177.694118-82.823529 183.717647-46.682353 40.658824-109.929412 57.223529-170.164706 45.17647 12.047059 31.623529 63.247059 135.529412 200.282353 131.011765 54.211765-1.505882 105.411765-24.094118 143.058823-63.247059 45.176471-45.176471 54.211765-114.447059 55.717647-135.529412 10.541176-102.4 60.235294-155.105882 81.317647-174.682353M1159.529412 216.847059c0-15.058824-7.529412-28.611765-18.070588-37.647059l-106.917648-82.823529s-21.082353-18.070588-21.082352 9.035294v338.823529c0 58.729412-25.6 115.952941-70.776471 155.105882-52.705882 45.176471-121.976471 66.258824-189.741177 55.717648 15.058824 31.623529 73.788235 131.011765 204.8 131.011764 120.470588 0 201.788235-106.917647 201.788236-206.305882V216.847059M382.494118 418.635294c52.705882-45.176471 121.976471-66.258824 189.741176-55.717647-15.058824-31.623529-73.788235-131.011765-204.8-131.011765-120.470588 0-201.788235 106.917647-201.788235 206.305883v368.941176c0 15.058824 6.023529 28.611765 18.070588 37.647059l106.917647 82.823529s21.082353 18.070588 21.082353-9.035294V582.776471v-9.035295c0-60.235294 25.6-115.952941 70.776471-155.105882" fill="#074195"/></symbol>
+</svg>
+  <div class="topbar">
+    <div class="logo"><span class="dot"><svg class="ic" style="width:17px;height:17px;stroke-width:2.6"><use href="#i-trending-up"/></svg></span>现金理财监控</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="nav">
+        <a href="/" class="{% if request.path=='/' %}active{% endif %}">总览</a>
+        <a href="/settings" class="{% if request.path=='/settings' %}active{% endif %}">设置</a>
+      </div>
+      {% if current_user %}
+      <div class="user-chip">
+        <span class="user-avatar avatar-svg" title="{{ '管理员' if current_user.role=='admin' else '成员' }}"><svg><use href="#avatar-{{ 'admin' if current_user.role=='admin' else 'member' }}"/></svg></span>
+        <span class="user-meta">
+          <b>{{ current_user.display_name or current_user.username }}</b>
+          <span class="user-role {{ current_user.role }}">{{ '管理员' if current_user.role=='admin' else '成员' }}</span>
+        </span>
+        <a href="/logout" class="btn-logout" title="退出登录"><svg class="ic"><use href="#i-logout"/></svg></a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="container">{% block content %}{% endblock %}</div>
+
+  <div id="toast"></div>
+
+  <!-- 统一确认弹窗（不使用浏览器 confirm） -->
+  <div class="modal-mask" id="confirmModal">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-head">
+        <h3 id="confirm-title">确认操作</h3>
+        <button class="modal-close" onclick="closeConfirm()"><svg class="ic"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="confirm-msg" style="font-size:14px;line-height:1.8;"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+        <button class="btn btn-danger" id="confirm-ok" onclick="doConfirm()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 信息提示弹窗 -->
+  <div class="modal-mask" id="infoModal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-head">
+        <h3 id="info-title">提示</h3>
+        <button class="modal-close" onclick="closeModal('infoModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="info-msg" style="font-size:14px;line-height:1.8;"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary" onclick="closeModal('infoModal')">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 当前登录用户与权限（由后端注入），供各页面控制修改入口显隐
+    const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+    const CURRENT_USER = {{ current_user|tojson if current_user else 'null' }};
+    function toast(msg,ok=true){
+      const box=document.getElementById('toast');
+      const el=document.createElement('div');
+      el.className='toast-item '+(ok?'ok':'err');
+      el.textContent=msg; box.appendChild(el);
+      setTimeout(()=>{el.style.opacity='0';el.style.transition='.3s';setTimeout(()=>el.remove(),300)},3500);
+    }
+    function openModal(id){document.getElementById(id).classList.add('show')}
+    function closeModal(id){document.getElementById(id).classList.remove('show')}
+    // 云空间网关要求每个 API 请求带 sharecode 访问凭证；
+    // 从当前页面 URL 读取，读不到时用默认分享码兜底（预览面板可能丢参数）
+    function withSharecode(url){
+      const sc=new URLSearchParams(location.search).get('sharecode')||'57BQDYVY3U';
+      return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
+    }
+    async function api(url,opts={}){
+      const r=await fetch(withSharecode(url),{headers:{'Content-Type':'application/json'},...opts});
+      return r.json();
+    }
+
+    // 统一确认弹窗：confirmModal(提示文案, 确认后回调, {title, okText, danger})
+    let _confirmCb=null;
+    function confirmModal(message, onOk, opts={}){
+      const {title='确认操作', okText='确定', danger=true}=opts;
+      document.getElementById('confirm-title').textContent=title;
+      document.getElementById('confirm-msg').textContent=message;
+      const btn=document.getElementById('confirm-ok');
+      btn.textContent=okText;
+      btn.className='btn '+(danger?'btn-danger':'btn-primary');
+      _confirmCb=onOk;
+      openModal('confirmModal');
+    }
+    function closeConfirm(){closeModal('confirmModal');_confirmCb=null;}
+    function doConfirm(){const cb=_confirmCb;closeConfirm();if(cb)cb();}
+    function infoModal(title,message){
+      document.getElementById('info-title').textContent=title;
+      document.getElementById('info-msg').textContent=message;
+      openModal('infoModal');
+    }
+    // 本地日期（避免 toISOString 的时区偏移）
+    function todayStr(){
+      const d=new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function addDaysStr(dateStr,n){
+      const d=new Date(dateStr+'T00:00:00');
+      d.setDate(d.getDate()+n);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    // 移动端：屏蔽双指缩放手势（配合 viewport 的 user-scalable=no 与 touch-action:manipulation）
+    ['gesturestart','gesturechange','gestureend'].forEach(ev=>{
+      document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

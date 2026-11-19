@@ -1,0 +1,26 @@
+# 龙钱包现金理财监控 - Docker Compose
+# 端口：6868    数据持久化：命名卷 longwallet-data 挂载到 /app/data
+services:
+  longwallet:
+    build: .
+    image: longwallet-monitor:latest
+    container_name: longwallet
+    restart: unless-stopped
+    ports:
+      - "6868:6868"
+    environment:
+      # 容器内监听端口（与 EXPOSE/启动保持一致）
+      PORT: "6868"
+      # SQLite 数据库所在目录，务必指向被卷挂载的 /app/data
+      DATA_DIR: /app/data
+      # 建行站点旧式 TLS 重协商兼容（镜像内已放置该文件）
+      OPENSSL_CONF: /app/openssl_legacy.cnf
+      TZ: Asia/Shanghai
+      # 会话签名密钥：生产环境请在下方或 .env 中改为随机强字符串
+      SECRET_KEY: "${SECRET_KEY:-longwallet-monitor-secret-key}"
+    volumes:
+      # 数据持久化：数据库、备份等全部落在命名卷，容器重建不丢失
+      - longwallet-data:/app/data
+
+volumes:
+  longwallet-data:

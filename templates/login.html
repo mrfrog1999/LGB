@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <title>登录 · 现金理财监控</title>
+  <style>
+    :root{--brand:#4f46e5;--brand2:#6366f1;--text:#1e293b;--muted:#8b97ab;--up:#e0392b}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{overflow-x:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;
+      background:var(--bg,#f4f6fb);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh;
+      display:flex;align-items:center;justify-content:center;padding:24px;
+      background-image:radial-gradient(1100px 500px at 15% -10%,rgba(99,102,241,.16),transparent 60%),
+                       radial-gradient(900px 460px at 90% 110%,rgba(14,165,233,.14),transparent 60%),
+                       linear-gradient(160deg,#f7f8fc,#eef1f8);
+      background-attachment:fixed}
+    .login-card{width:100%;max-width:420px;background:#fff;border:1px solid #e9edf4;
+      border-radius:22px;box-shadow:0 24px 70px rgba(16,24,40,.12),0 2px 6px rgba(16,24,40,.04);
+      padding:40px 34px 34px;animation:up .35s cubic-bezier(.2,.8,.2,1)}
+    @keyframes up{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+    .brand{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:30px}
+    .brand .dot{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,#6366f1,#4f46e5 55%,#4338ca);
+      box-shadow:0 10px 26px rgba(79,70,229,.4),inset 0 1px 1px rgba(255,255,255,.35);margin-bottom:16px}
+    .brand .dot svg{width:28px;height:28px;color:#fff;stroke-width:2.4;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+    .brand h1{font-size:21px;font-weight:750;letter-spacing:-.4px}
+    .brand p{font-size:12.5px;color:var(--muted);margin-top:5px}
+    .field{margin-bottom:18px}
+    .field label{display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:8px}
+    .input-wrap{position:relative}
+    .input-wrap .ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:18px;height:18px;
+      color:#a5b0c2;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .field input{width:100%;padding:13px 14px 13px 42px;border:1.5px solid #e2e8f0;border-radius:11px;
+      font-size:15px;font-family:inherit;outline:none;transition:.2s;background:#fbfcfe;color:var(--text)}
+    .field input:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(79,70,229,.1)}
+    .field input::placeholder{color:#b6c0d0}
+    .btn-login{width:100%;padding:13px;border:none;border-radius:11px;font-size:15px;font-weight:700;
+      color:#fff;cursor:pointer;margin-top:6px;font-family:inherit;
+      background:linear-gradient(135deg,var(--brand2),#4338ca);
+      box-shadow:0 8px 20px rgba(79,70,229,.32);transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn-login:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(79,70,229,.42)}
+    .btn-login:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-login svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .err-msg{min-height:20px;color:var(--up);font-size:12.5px;text-align:center;margin-top:12px}
+    .foot{text-align:center;font-size:11.5px;color:#aab4c4;margin-top:22px;line-height:1.8}
+    .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+      border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:480px){.login-card{padding:32px 22px 26px}}
+  </style>
+</head>
+<body>
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="brand">
+      <span class="dot"><svg viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg></span>
+      <h1>现金理财监控</h1>
+      <p>登录后查看与管理您的理财数据</p>
+    </div>
+    <div class="field">
+      <label for="username">用户名</label>
+      <div class="input-wrap">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <input type="text" id="username" name="username" placeholder="请输入用户名" autocomplete="username" required autofocus>
+      </div>
+    </div>
+    <div class="field">
+      <label for="password">密码</label>
+      <div class="input-wrap">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input type="password" id="password" name="password" placeholder="请输入密码" autocomplete="current-password" required>
+      </div>
+    </div>
+    <button type="submit" class="btn-login" id="btnLogin">登 录</button>
+    <div class="err-msg" id="errMsg"></div>
+    <div class="foot">账号由管理员分配 · 普通成员仅可查看数据</div>
+  </form>
+<script>
+const urlParams=new URLSearchParams(location.search);
+function withSharecode(url){
+  const sc=urlParams.get('sharecode')||'57BQDYVY3U';
+  return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
+}
+document.getElementById('loginForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  const btn=document.getElementById('btnLogin');
+  const err=document.getElementById('errMsg');
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value;
+  err.textContent='';
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> 登录中…';
+  try{
+    const r=await fetch(withSharecode('/api/auth/login'),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password})
+    });
+    const d=await r.json();
+    if(d.ok){
+      let next=urlParams.get('next')||'/';
+      if(!next.startsWith('/')||next.startsWith('//'))next='/';
+      const sc=urlParams.get('sharecode');
+      if(sc)next+=(next.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
+      location.href=next;
+    }else{
+      err.textContent=d.error||'登录失败，请重试';
+      btn.disabled=false;
+      btn.textContent='登 录';
+    }
+  }catch(ex){
+    err.textContent='网络异常：'+ex.message;
+    btn.disabled=false;
+    btn.textContent='登 录';
+  }
+});
+</script>
+</body>
+</html>

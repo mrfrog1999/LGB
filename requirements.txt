@@ -1,0 +1,6 @@
+# 龙钱包收益监控 - 依赖
+requests>=2.31.0
+pdfplumber>=0.11.0
+Flask>=3.0.0
+APScheduler>=3.10.0
+python-docx>=1.1.0
