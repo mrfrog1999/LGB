@@ -159,10 +159,6 @@
 
 <!-- 三家银行官网抓取年化（3 卡片，重点展示官方七日年化，含分银行小计数据） -->
 <div style="margin-bottom:22px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 12px;flex-wrap:wrap;">
-    <div style="font-size:12px;font-weight:700;color:#64748b;letter-spacing:.3px;">分银行概览 · 官网抓取年化与持仓对照</div>
-    <div style="font-size:11px;color:var(--muted);">各行官网每日抓取，按持有产品<b>算术平均</b>；建行按每万份收益折算（与建行 App 口径一致）</div>
-  </div>
   {% set bs = data.portfolio.bank_summary %}
   <div class="rate-cards">
     {% set rate_banks = [
