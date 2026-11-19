@@ -261,7 +261,7 @@
     // 云空间网关要求每个 API 请求带 sharecode 访问凭证；
     // 从当前页面 URL 读取，读不到时用默认分享码兜底（预览面板可能丢参数）
     function withSharecode(url){
-      const sc=new URLSearchParams(location.search).get('sharecode')||'57BQDYVY3U';
+      const sc=new URLSearchParams(location.search).get('sharecode')||'{{ sharecode_fallback }}';
       return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
     }
     async function api(url,opts={}){

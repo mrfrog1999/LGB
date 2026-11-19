@@ -71,6 +71,7 @@ def inject_user():
     return {
         "current_user": u,
         "is_admin": bool(u and u["role"] == "admin"),
+        "sharecode_fallback": config.SHARECODE_FALLBACK,
     }
 
 

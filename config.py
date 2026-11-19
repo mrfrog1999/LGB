@@ -43,3 +43,8 @@ SECOND_FETCH_MINUTE = int(os.environ.get("SECOND_FETCH_MINUTE", "0"))
 
 # 年化预警：某只产品七日年化低于该值（%）时发邮件提醒
 DEFAULT_ALERT_ANNUAL = float(os.environ.get("ALERT_ANNUAL", "1.0"))
+
+# 访问码兜底值：部分部署网关要求请求携带 sharecode。
+# 正常访问由前端从 URL 参数读取；若预览面板等场景丢失参数，可在此配置兜底值。
+# 默认留空，源码不内置任何具体凭证，需要时由部署环境通过环境变量提供。
+SHARECODE_FALLBACK = os.environ.get("SHARECODE", "")

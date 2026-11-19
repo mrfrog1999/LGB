@@ -1,98 +1,139 @@
 # 龙钱包 · 现金理财监控
 
-抓取建行 / 邮储 / 浦发三家银行理财产品的七日年化与万份收益，记录持仓、支出与收益，支持每日定时邮件推送、年化预警、多账号权限与数据备份恢复。
+一个自托管的现金理财监控系统：自动抓取银行理财产品公告，记录持仓、支出与收益，提供可视化总览、每日定时邮件日报、年化预警、多账号权限与全量数据备份恢复。
 
-## 功能
+## 功能特性
 
-- 每日自动抓取三家银行官网公告，按每万份收益逐日复利计算收益
-- 持仓管理：新买入、已持有导入、编辑、加仓、删除、支出记录
-- 总览：三家银行年化卡片、收益曲线、持仓明细
-- 邮件报告 + 每日定时推送 + 七日年化跌破阈值预警
-- 登录鉴权：管理员（可修改）/ 普通成员（只读）
-- 全量数据导出 / 导入（含设置与账号）
+- **多数据源抓取**：定时抓取建设银行、邮储银行、浦发银行的理财产品七日年化与每万份收益
+- **收益计算**：按每万份收益逐日计息，支持新买入、已持有导入、加仓、编辑、删除与支出记录
+- **可视化总览**：三家银行年化卡片、收益走势、持仓明细，适配桌面端与移动端
+- **邮件日报**：HTML 格式报告，兼容移动端邮箱
+- **定时任务**：每日推送数据报告；每日定时补充抓取（仅更新数据，不发邮件）
+- **年化预警**：产品七日年化跌破阈值时自动邮件提醒
+- **权限管理**：管理员（读写）/ 普通成员（只读），密码哈希存储
+- **数据安全**：全量 JSON 导出 / 导入（含设置与账号），SQLite 本地持久化
 
-## 默认账号
+## 技术栈
 
-| 角色 | 用户名 | 密码 |
-|---|---|---|
-| 管理员 | `admin` | `admin123` |
+| 层 | 技术 |
+|---|---|
+| 后端 | Python 3.11 · Flask · SQLite · APScheduler |
+| 前端 | 原生 HTML / CSS / JavaScript · SVG 图标 |
+| 抓取 | curl 子进程 + 银行站点 TLS 兼容配置 |
+| 部署 | Docker · Docker Compose · GitHub Actions (GHCR) |
 
-> 登录后请立即在「设置 → 账号与权限 → 修改我的密码」中更改默认密码。
+## 项目结构
 
-## 一键部署（Docker Compose）
+```text
+.
+├── app.py                  # Web 路由、鉴权、定时任务调度
+├── service.py              # 业务逻辑：数据聚合、收益计算、更新流程
+├── db.py                   # SQLite 数据访问与备份导入导出
+├── calculator.py           # 收益计算
+├── config.py               # 配置项（均可用环境变量覆盖）
+├── ccb.py / psbc.py / spdb.py  # 三家银行的数据源抓取
+├── mailer.py               # 邮件报告生成与 SMTP 发送
+├── openssl_legacy.cnf      # 银行站点 TLS 重协商兼容配置
+├── templates/              # 页面模板：总览、设置、登录
+├── static/                 # 静态资源
+├── Dockerfile              # 镜像构建
+├── docker-compose.yml      # 一键部署编排
+└── .github/workflows/      # 自动构建镜像并推送到 GHCR
+```
 
-### 方式一：从源码构建（推荐）
+## 快速开始
+
+### 方式一：Docker Compose（推荐）
 
 ```bash
-git clone https://github.com/mrfrog1999/FPC.git
+git clone https://github.com/<你的用户名>/FPC.git
 cd FPC
-# 可选：设置会话密钥
-export SECRET_KEY="换成一段随机强字符串"
+
+# 建议设置会话密钥（否则使用代码中的开发默认值）
+export SECRET_KEY="$(openssl rand -hex 32)"
+
 docker compose up -d --build
 ```
 
-### 方式二：使用 GitHub Actions 构建的镜像
+部署完成后访问 `http://<服务器地址>:6868/`。
 
-每次 push 到 main 分支，GitHub Actions 会自动构建镜像并推送到 GHCR。使用时把 `docker-compose.yml` 中的 `build: .` 注释掉、并启用 `image: ghcr.io/mrfrog1999/fpc:latest` 即可：
+### 方式二：GitHub Actions 构建的镜像
 
-```yaml
-services:
-  longwallet:
-    # build: .
-    image: ghcr.io/mrfrog1999/fpc:latest
-    ...
-```
-
-然后：
+推送到 `main` / `master` 分支会自动构建镜像并推送到 GHCR。将 `docker-compose.yml` 中的 `build: .` 注释掉、启用 `image: ghcr.io/<你的用户名>/fpc:latest` 后：
 
 ```bash
 docker compose up -d
 ```
 
-部署完成后访问：
-
-```
-http://服务器IP:6868/?sharecode=57BQDYVY3U
-```
-
-## 端口与数据持久化
-
-- **运行端口：6868**（`docker-compose.yml` 中 `6868:6868`，容器内 `PORT=6868`）
-- **数据持久化**：SQLite 数据库位于 `/app/data/longwallet.db`，通过命名卷 `longwallet-data` 挂载。容器停止、删除、重建后数据均不丢失。
-
-常用命令：
-
-```bash
-# 查看日志
-docker compose logs -f
-
-# 停止（数据保留在卷中）
-docker compose down
-
-# 完全删除数据卷（危险：会清空所有持仓与设置）
-docker compose down -v
-
-# 备份数据库（复制到宿主机当前目录）
-docker cp longwallet:/app/data/longwallet.db ./longwallet-backup.db
-```
-
-> 也可在系统「设置 → 数据备份与恢复」中导出/导入完整 JSON 备份（含设置与账号）。
-
-## 环境变量
-
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `PORT` | `6868` | Web 监听端口 |
-| `DATA_DIR` | `/app/data` | 数据库目录（应指向持久化卷） |
-| `OPENSSL_CONF` | `/app/openssl_legacy.cnf` | 建行 TLS 兼容配置 |
-| `SECRET_KEY` | `longwallet-monitor-secret-key` | 会话签名密钥，生产建议修改 |
-| `TZ` | `Asia/Shanghai` | 时区（影响定时任务） |
-
-## 本地开发运行
+### 方式三：本地开发运行
 
 ```bash
 pip install -r requirements.txt
 OPENSSL_CONF=$(pwd)/openssl_legacy.cnf python3 app.py
 ```
 
-默认监听 `8866`（本地未设置 `PORT` 时）。
+默认监听 `8866` 端口（未设置 `PORT` 时）。
+
+## 端口与数据持久化
+
+- **运行端口**：`6868`（Compose 中 `6868:6868`，容器内 `PORT=6868`）
+- **数据持久化**：SQLite 数据库位于 `/app/data/longwallet.db`，通过命名卷 `longwallet-data` 挂载，容器停止、删除、重建后数据均不丢失
+
+常用命令：
+
+```bash
+docker compose logs -f                       # 查看日志
+docker compose down                          # 停止（数据保留在卷中）
+docker compose down -v                       # 删除数据卷（危险：清空所有数据）
+docker cp longwallet:/app/data/longwallet.db ./backup.db   # 备份数据库
+```
+
+也可以在系统「设置 → 数据备份与恢复」中导出 / 导入完整 JSON 备份。
+
+## 配置
+
+所有配置项均可通过环境变量覆盖：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `PORT` | `6868`（Docker）/ `8866`（本地） | Web 监听端口 |
+| `DATA_DIR` | `/app/data`（Docker） | 数据库目录，应指向持久化卷 |
+| `OPENSSL_CONF` | `/app/openssl_legacy.cnf` | 银行站点 TLS 兼容配置 |
+| `SECRET_KEY` | 见 `config.py` | 会话签名密钥，**生产环境务必修改** |
+| `TZ` | `Asia/Shanghai` | 时区，影响定时任务 |
+| `PUSH_HOUR` / `PUSH_MINUTE` | `9` / `0` | 每日数据推送时间 |
+| `SECOND_FETCH_HOUR` / `SECOND_FETCH_MINUTE` | `14` / `0` | 每日补充抓取时间（不发邮件） |
+| `ALERT_ANNUAL` | `1.0` | 年化预警阈值（%） |
+| `SHARECODE` | 空 | 访问码兜底值，仅在需要 sharecode 访问的部署网关后使用；普通部署无需设置 |
+
+推送时间、预警阈值、SMTP、收件人等也可在「设置」页中调整。
+
+## 定时任务
+
+| 任务 | 默认时间 | 行为 |
+|---|---|---|
+| 每日主任务 | 09:00 | 抓取最新净值、重算收益、发送邮件日报 |
+| 补充抓取 | 14:00 | 仅抓取并更新数据，不发送邮件 |
+
+任务时间可在「设置 → 每日推送」中修改，也可通过上表环境变量配置。
+
+## 账号与权限
+
+- 首次启动会创建一个默认管理员账号（用户名与初始密码见 `db.py` 初始化逻辑），**登录后请立即修改密码**
+- 管理员：可读写全部数据与设置、管理账号、导出数据
+- 普通成员：只读，可查看数据与预览报告、修改自己的密码
+- 密码以哈希方式存储，不保存明文
+
+## 安全说明
+
+- 请勿将数据库文件（`*.db`）、`.env`、`data/` 目录提交到版本库，这些可能包含持仓、邮箱授权码、密码哈希等敏感信息（`.gitignore` 已默认排除）
+- 生产环境务必修改 `SECRET_KEY` 与默认管理员密码
+- 邮件授权码等凭据仅在服务端保存，前端导出 / 导入备份需注意保管
+
+## 数据说明
+
+产品列表中的日期为**净值归属日**（银行公告对应的净值日期），与程序实际抓取时间不同；银行通常在当日公布上一交易日的净值，两者可能相差一天。
+
+## License
+
+本项目仅供个人学习与自托管使用。数据来源为各银行公开公告，请以银行官方渠道为准。

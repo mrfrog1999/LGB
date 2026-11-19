@@ -79,7 +79,7 @@
 <script>
 const urlParams=new URLSearchParams(location.search);
 function withSharecode(url){
-  const sc=urlParams.get('sharecode')||'57BQDYVY3U';
+  const sc=urlParams.get('sharecode')||'{{ sharecode_fallback }}';
   return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
 }
 document.getElementById('loginForm').addEventListener('submit',async function(e){
