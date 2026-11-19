@@ -117,9 +117,31 @@
     .bank-mini-item:first-child{padding-left:0}
     .bank-mini-item:last-child{border-bottom:none;padding-bottom:0}
     .app-ref-name{min-width:0;width:100%}
-    .rate-cards{grid-template-columns:1fr;gap:12px}
-    .rate-card{padding:16px 18px 15px}
-    .rate-card-num{font-size:34px}
+    /* 移动端：三家银行卡片一行显示（紧凑布局） */
+    .rate-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .rate-card{padding:11px 9px 10px;border-radius:12px;min-width:0}
+    .rate-card::before{width:3px}
+    .rate-card::after{width:70px;height:70px;right:-25px;top:-25px}
+    .rate-card-head{gap:5px;margin-bottom:9px}
+    .rate-card-avatar{width:22px;height:22px;border-radius:6px;font-size:11px;padding:0}
+    .rate-card-avatar.bank-logo{padding:2px}
+    .rate-card-title{font-size:11px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rate-card-sub{display:none}
+    .rate-card-label{display:none}
+    .rate-card-main{margin-bottom:8px}
+    .rate-card-num{font-size:20px;letter-spacing:-0.8px;margin-top:0}
+    .rate-card-num .pct{font-size:10px;margin-left:1px}
+    .rate-card-tag{font-size:9px;padding:1px 4px;margin-top:4px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .rate-card-tag .tag-prefix{display:none}
+    .rate-card-foot{padding-top:8px}
+    .rate-card-metrics{grid-template-columns:1fr;gap:4px}
+    .rate-card-metrics .metric{display:flex;justify-content:space-between;align-items:baseline;gap:2px}
+    .rate-card-metrics .metric span{font-size:8.5px;flex:0 0 auto}
+    .rate-card-metrics .metric b{font-size:9.5px;margin-top:0;text-align:right;max-width:60%}
+    .rate-card-metrics .metric b.value{font-size:9.5px}
+    .rate-card-metrics .metric:nth-child(n+3){display:none}
+    .rate-card-pending{font-size:8.5px;margin-top:5px}
+    .rate-card-empty{font-size:9px}
     .expense-head{flex-direction:column;align-items:flex-start !important}
     .expense-head .btn{width:100%;justify-content:center}
     .top-actions{width:100% !important;min-width:0 !important}
@@ -191,7 +213,7 @@
         <div class="rate-card-tag">
           {% if bs.get(key) and bs[key].avg_date %}
             <svg class="ic" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-clock"/></svg>
-            净值日期 {{ bs[key].avg_date }}
+            <span class="tag-prefix">净值日期 </span>{{ bs[key].avg_date }}
           {% else %}
             官网每日抓取 · 持有产品算术平均
           {% endif %}
