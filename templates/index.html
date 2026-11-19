@@ -157,48 +157,6 @@
   </div>
 </div>
 
-<!-- 汇总卡片 -->
-<div class="summary-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:22px;">
-  <div class="card" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-wallet"/></svg></span><span class="stat-label">总本金{% if data.portfolio.total_expense>0 %} · 已扣支出{% endif %}</span></div>
-    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_principal) }}</div>
-    {% if data.portfolio.pending_capital>0 %}
-    <div class="stat-sub" style="color:#b45309;">待入账 +¥{{ '%.2f'|format(data.portfolio.pending_capital) }}</div>
-    {% elif data.portfolio.total_expense>0 %}
-    <div class="stat-sub">累计取出 ¥{{ '%.2f'|format(data.portfolio.total_expense) }}</div>
-    {% endif %}
-  </div>
-  <div class="card" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico" style="background:#ecfdf5;color:#059669"><svg class="ic"><use href="#i-bar-chart"/></svg></span><span class="stat-label">当前市值</span></div>
-    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_value) }}</div>
-    {% if data.portfolio.additions_total>0 %}
-    <div class="stat-sub">含追加本金 ¥{{ '%.2f'|format(data.portfolio.additions_total) }}</div>
-    {% endif %}
-  </div>
-  <div class="card stat-card hero" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-trending-up"/></svg></span><span class="stat-label">整体七日年化</span></div>
-    <div class="stat-num">
-      {% if data.portfolio.overall_annual is not none %}{{ '%.4f'|format(data.portfolio.overall_annual) }}%{% else %}-{% endif %}
-    </div>
-    <div class="stat-sub">按本金加权</div>
-  </div>
-  <div class="card" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico" style="background:#fef3c7;color:#d97706"><svg class="ic"><use href="#i-sparkles"/></svg></span><span class="stat-label">累计收益</span></div>
-    <div class="stat-num up">
-      {% if data.portfolio.total_profit>=0 %}+{% endif %}¥{{ '%.2f'|format(data.portfolio.total_profit) }}
-    </div>
-    <div class="stat-sub">
-      历史 {{ '%.2f'|format(data.portfolio.historical_profit) }} + 监控后 {{ '%.2f'|format(data.portfolio.rolling_profit) }}
-    </div>
-  </div>
-  <div class="card" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico" style="background:#f5f3ff;color:#7c3aed"><svg class="ic"><use href="#i-target"/></svg></span><span class="stat-label">收益率 · {{ data.portfolio.count }} 笔持仓</span></div>
-    <div class="stat-num up">
-      {% if data.portfolio.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(data.portfolio.profit_rate) }}%
-    </div>
-  </div>
-</div>
-
 <!-- 三家银行官网抓取年化（3 卡片，重点展示官方七日年化，含分银行小计数据） -->
 <div style="margin-bottom:22px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 12px;flex-wrap:wrap;">
@@ -260,6 +218,48 @@
       </div>
     </div>
     {% endfor %}
+  </div>
+</div>
+
+<!-- 汇总卡片 -->
+<div class="summary-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:22px;">
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-wallet"/></svg></span><span class="stat-label">总本金{% if data.portfolio.total_expense>0 %} · 已扣支出{% endif %}</span></div>
+    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_principal) }}</div>
+    {% if data.portfolio.pending_capital>0 %}
+    <div class="stat-sub" style="color:#b45309;">待入账 +¥{{ '%.2f'|format(data.portfolio.pending_capital) }}</div>
+    {% elif data.portfolio.total_expense>0 %}
+    <div class="stat-sub">累计取出 ¥{{ '%.2f'|format(data.portfolio.total_expense) }}</div>
+    {% endif %}
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#ecfdf5;color:#059669"><svg class="ic"><use href="#i-bar-chart"/></svg></span><span class="stat-label">当前市值</span></div>
+    <div class="stat-num">¥{{ '%.2f'|format(data.portfolio.total_value) }}</div>
+    {% if data.portfolio.additions_total>0 %}
+    <div class="stat-sub">含追加本金 ¥{{ '%.2f'|format(data.portfolio.additions_total) }}</div>
+    {% endif %}
+  </div>
+  <div class="card stat-card hero" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico"><svg class="ic"><use href="#i-trending-up"/></svg></span><span class="stat-label">整体七日年化</span></div>
+    <div class="stat-num">
+      {% if data.portfolio.overall_annual is not none %}{{ '%.4f'|format(data.portfolio.overall_annual) }}%{% else %}-{% endif %}
+    </div>
+    <div class="stat-sub">按本金加权</div>
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#fef3c7;color:#d97706"><svg class="ic"><use href="#i-sparkles"/></svg></span><span class="stat-label">累计收益</span></div>
+    <div class="stat-num up">
+      {% if data.portfolio.total_profit>=0 %}+{% endif %}¥{{ '%.2f'|format(data.portfolio.total_profit) }}
+    </div>
+    <div class="stat-sub">
+      历史 {{ '%.2f'|format(data.portfolio.historical_profit) }} + 监控后 {{ '%.2f'|format(data.portfolio.rolling_profit) }}
+    </div>
+  </div>
+  <div class="card" style="padding:19px;">
+    <div class="stat-top"><span class="stat-ico" style="background:#f5f3ff;color:#7c3aed"><svg class="ic"><use href="#i-target"/></svg></span><span class="stat-label">收益率 · {{ data.portfolio.count }} 笔持仓</span></div>
+    <div class="stat-num up">
+      {% if data.portfolio.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(data.portfolio.profit_rate) }}%
+    </div>
   </div>
 </div>
 
