@@ -91,7 +91,7 @@ docker compose -f docker-compose.build.yml up -d --build
 
 ### 镜像说明
 
-推送到 `main` / `master` 分支会自动构建镜像并推送到 GHCR（`ghcr.io/<你的用户名>/fpc:latest`）。若镜像为私有，需先在服务器登录：
+推送到 `main` / `master` 分支会自动构建镜像并推送到 GHCR（`ghcr.io/<你的用户名>/lgb:latest`）。若镜像为私有，需先在服务器登录：
 
 ```bash
 echo <TOKEN> | docker login ghcr.io -u <用户名> --password-stdin

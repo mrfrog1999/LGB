@@ -15,7 +15,7 @@
 services:
   longwallet:
     # GitHub Actions 构建并推送到 GHCR 的镜像
-    image: ghcr.io/mrfrog1999/fpc:latest
+    image: ghcr.io/mrfrog1999/lgb:latest
     # 若镜像为私有仓库，需先在服务器执行：
     #   echo <TOKEN> | docker login ghcr.io -u <用户名> --password-stdin
     container_name: longwallet
