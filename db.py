@@ -183,7 +183,7 @@ def init_db():
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             c.execute(
                 "INSERT INTO users(username,password_hash,role,display_name) VALUES(?,?,?,?)",
-                ("f16335", generate_password_hash("cqmyg123"), "admin", "管理员"),
+                ("admin", generate_password_hash("admin123"), "admin", "管理员"),
             )
 
 
