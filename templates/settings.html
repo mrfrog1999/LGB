@@ -202,6 +202,16 @@
       <button class="btn btn-primary" style="margin-top:10px;" onclick="saveSettings()">保存定时设置</button>
     </div>
   <div class="card">
+      <div class="sec-head"><span class="sec-ico"><svg class="ic" style="width:18px;height:18px"><use href="#i-clock"/></svg></span><h2>自动抓取时间</h2></div>
+      <div class="sec-desc">可设置多个时间点，到点自动抓取三家银行最新净值并更新收益（不发邮件）。邮件推送时间在上面「每日推送」单独设置。</div>
+      <div id="fetchTimesList" style="margin:12px 0;"></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-ghost" type="button" onclick="addFetchTime()">＋ 添加时间</button>
+        <span class="hint" style="margin:0;">每天按这些时间点自动更新数据</span>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="saveSettings()">保存抓取时间</button>
+    </div>
+  <div class="card">
       <div class="sec-head"><span class="sec-ico amber"><svg class="ic" style="width:18px;height:18px"><use href="#i-alert"/></svg></span><h2>年化预警</h2></div>
       <div class="sec-desc">有产品的七日年化跌破阈值时，程序会在每日任务结束后单独发一封预警邮件</div>
       <div class="form-row">
@@ -431,6 +441,32 @@ const DIAG_META={
 };
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+/* ===== 自动抓取时间 ===== */
+let FETCH_TIMES=[];
+try{ const _ft=JSON.parse({{ (settings.fetch_times or '[]')|tojson }}); if(Array.isArray(_ft))FETCH_TIMES=_ft; }catch(e){}
+function renderFetchTimes(){
+  const box=document.getElementById('fetchTimesList');
+  if(!box)return;
+  if(!FETCH_TIMES.length){box.innerHTML='<div class="hint" style="margin:0;">尚未设置抓取时间，将使用默认 14:00</div>';return;}
+  box.innerHTML=FETCH_TIMES.map((t,i)=>
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'+
+      '<input type="time" value="'+esc(t)+'" data-ftidx="'+i+'" onchange="FETCH_TIMES['+i+']=this.value" style="max-width:150px;">'+
+      '<button class="btn btn-ghost" type="button" title="删除" onclick="removeFetchTime('+i+')" style="padding:8px 11px;">✕</button>'+
+    '</div>').join('');
+}
+function addFetchTime(){
+  FETCH_TIMES.push('14:00');
+  renderFetchTimes();
+}
+function removeFetchTime(i){
+  FETCH_TIMES.splice(i,1);
+  renderFetchTimes();
+}
+function collectFetchTimes(){
+  document.querySelectorAll('input[data-ftidx]').forEach(el=>{FETCH_TIMES[Number(el.dataset.ftidx)]=el.value;});
+  return FETCH_TIMES.slice();
+}
+
 /* ===== 账号与权限 ===== */
 async function loadUsers(){
   const box=document.getElementById('userList');
@@ -643,6 +679,7 @@ async function saveSettings(){
     push_enabled:document.getElementById('s-enabled').value,
     push_hour:document.getElementById('s-hour').value.trim(),
     push_minute:document.getElementById('s-minute').value.trim(),
+    fetch_times:collectFetchTimes(),
     backup_enabled:document.getElementById('s-backup-enabled').value,
     backup_hour:document.getElementById('s-backup-hour').value.trim(),
     backup_minute:document.getElementById('s-backup-minute').value.trim(),
@@ -787,5 +824,8 @@ async function regenWidgetToken(){
     toast('新令牌已生成，请更新 Scriptable 脚本');
   },{title:'重新生成访问令牌',okText:'重新生成'});
 }
+
+/* 初始化 */
+renderFetchTimes();
 </script>
 {% endblock %}

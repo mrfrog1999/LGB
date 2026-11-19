@@ -2,9 +2,10 @@
 import sqlite3
 import threading
 import secrets
+import json
 from contextlib import contextmanager
 from werkzeug.security import generate_password_hash, check_password_hash
-from config import DB_PATH
+from config import DB_PATH, DEFAULT_FETCH_TIMES
 import secure
 
 _write_lock = threading.RLock()
@@ -142,6 +143,14 @@ def init_db():
             note        TEXT DEFAULT '',
             created_at  TEXT DEFAULT (datetime('now','localtime'))
         );
+
+        -- 抓取任务日志：存 SQLite（多实例/多 worker 共享），避免内存态导致的跨实例读不到
+        CREATE TABLE IF NOT EXISTS fetch_logs (
+            run_id   TEXT PRIMARY KEY,
+            status   TEXT NOT NULL DEFAULT 'running',  -- running / ok / error
+            lines    TEXT NOT NULL DEFAULT '[]',       -- JSON 数组
+            updated  REAL NOT NULL
+        );
         """)
 
         # 轻量迁移：旧库补列
@@ -181,6 +190,8 @@ def init_db():
             "push_hour": "9",
             "push_minute": "0",
             "last_push_date": "",
+            # 自动抓取时间点列表（JSON 数组，元素为 "HH:MM"，可配置多个，仅抓数据不发邮件）
+            "fetch_times": json.dumps(DEFAULT_FETCH_TIMES),
             # 建行 App 历史收益基准：开始监控前已累计的收益（导入日 2026-11-18）
             # 汇总时 累计收益 = 该基准 + 监控后滚动收益；总本金 = 当前市值 - 累计收益
             "historical_profit": "37.92",
@@ -240,6 +251,46 @@ def regenerate_widget_token():
     token = secrets.token_urlsafe(18)
     set_setting("widget_token", token)
     return token
+
+
+def get_fetch_times():
+    """读取自动抓取时间点列表，返回形如 ['09:00','14:00'] 的规范化列表。
+
+    容错：坏数据、空列表都回退到 config 默认；去重、排序、过滤非法值。
+    """
+    import re
+    raw = get_settings().get("fetch_times", "")
+    times = []
+    try:
+        val = json.loads(raw) if raw else []
+        if isinstance(val, list):
+            for x in val:
+                m = re.match(r"^(\d{1,2}):(\d{2})$", str(x).strip())
+                if m:
+                    h, mi = int(m.group(1)), int(m.group(2))
+                    if 0 <= h <= 23 and 0 <= mi <= 59:
+                        times.append(f"{h:02d}:{mi:02d}")
+    except (ValueError, TypeError):
+        pass
+    if not times:
+        times = list(DEFAULT_FETCH_TIMES)
+    return sorted(set(times))
+
+
+def normalize_fetch_times(items):
+    """把前端传来的抓取时间数组规范化为 JSON 字符串；非法/空则回退默认。"""
+    import re
+    times = []
+    if isinstance(items, list):
+        for x in items:
+            m = re.match(r"^(\d{1,2}):(\d{2})$", str(x).strip())
+            if m:
+                h, mi = int(m.group(1)), int(m.group(2))
+                if 0 <= h <= 23 and 0 <= mi <= 59:
+                    times.append(f"{h:02d}:{mi:02d}")
+    if not times:
+        times = list(DEFAULT_FETCH_TIMES)
+    return json.dumps(sorted(set(times)))
 
 
 # ---------- products ----------
@@ -748,3 +799,69 @@ def admin_count():
     n = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
     conn.close()
     return n
+
+
+# ---------------- 抓取任务日志（SQLite 共享，兼容多实例部署） ----------------
+import time as _time
+
+def fetch_log_new(run_id):
+    with transaction() as c:
+        c.execute(
+            "INSERT OR REPLACE INTO fetch_logs(run_id, status, lines, updated) VALUES(?, 'running', '[]', ?)",
+            (run_id, _time.time()),
+        )
+
+
+def fetch_log_append(run_id, msg, level="info", tstr=None):
+    """追加一行日志；原子读改写，避免并发丢行。"""
+    line = {"t": tstr or _time.strftime("%H:%M:%S"), "level": level, "msg": str(msg)}
+    with transaction() as c:
+        row = c.execute("SELECT lines FROM fetch_logs WHERE run_id=?", (run_id,)).fetchone()
+        lines = []
+        if row:
+            try:
+                lines = json.loads(row["lines"] or "[]")
+            except Exception:
+                lines = []
+        lines.append(line)
+        c.execute("UPDATE fetch_logs SET lines=?, updated=? WHERE run_id=?",
+                  (json.dumps(lines, ensure_ascii=False), _time.time(), run_id))
+
+
+def fetch_log_finish(run_id, status):
+    with transaction() as c:
+        c.execute("UPDATE fetch_logs SET status=?, updated=? WHERE run_id=?",
+                  (status, _time.time(), run_id))
+        # 清理超过 1 小时的旧日志
+        c.execute("DELETE FROM fetch_logs WHERE updated < ?", (_time.time() - 3600,))
+
+
+def fetch_log_get(run_id):
+    conn = get_conn()
+    row = conn.execute("SELECT status, lines FROM fetch_logs WHERE run_id=?", (run_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        lines = json.loads(row["lines"] or "[]")
+    except Exception:
+        lines = []
+    return {"status": row["status"], "lines": lines}
+
+
+def fetch_log_active(max_age=180):
+    """返回当前仍在运行的抓取任务 run_id（仅认最近 max_age 秒内还在更新的），无则 None。
+
+    页面刷新后前端内存态丢失，据此外部可判断后台是否还有任务在跑，从而恢复按钮状态。
+    加时间窗口是为了排除进程被 kill 时留下的僵尸 running 记录。
+    """
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT run_id, updated FROM fetch_logs WHERE status='running' ORDER BY updated DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    if _time.time() - row["updated"] > max_age:
+        return None
+    return row["run_id"]

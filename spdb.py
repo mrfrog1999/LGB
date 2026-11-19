@@ -28,7 +28,7 @@ _CACHE_LOCK = threading.Lock()
 CACHE_SECONDS = 600
 
 
-def _api(chlid, searchword="", size=20, page=1, timeout=120):
+def _api(chlid, searchword="", size=20, page=1, timeout=25):
     """调用 spdb-wm 搜索接口，返回 content 列表与 totalElements。"""
     body = {
         "chlid": chlid,

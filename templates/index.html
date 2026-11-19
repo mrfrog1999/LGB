@@ -536,6 +536,27 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- 抓取日志弹窗 -->
+<div class="modal-mask" id="fetchLogModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head">
+      <h3>数据抓取日志 <span style="font-size:11px;color:var(--muted);font-weight:400;">· 新版 v2</span></h3>
+      <button class="modal-close" onclick="closeFetchLog()"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="fetchLogStatus" style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;color:var(--muted);">
+        <span class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:rf-spin .9s linear infinite;"></span>
+        <span id="fetchLogStatusText">正在连接…</span>
+      </div>
+      <div id="fetchLogBox" style="background:#0f172a;color:#cbd5e1;border-radius:10px;padding:14px 16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.75;max-height:46vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;min-height:140px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btn-fetchlog-refresh" onclick="location.reload()" style="display:none;">刷新页面看新数据</button>
+      <button class="btn btn-primary" onclick="closeFetchLog()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 支出录入弹窗 -->
 <div class="modal-mask" id="expenseModal">
   <div class="modal" style="max-width:480px;">
@@ -1022,6 +1043,8 @@ async function runSearch(q){
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+// 短别名，供抓取日志面板等处使用（避免 esc is not defined）
+function esc(s){ return escapeHtml(s); }
 
 function pickProductByIndex(i){
   const p=searchItems[i];
@@ -1195,14 +1218,107 @@ async function delWithdrawal(id){
   },{title:'删除支出记录',okText:'删除'});
 }
 
-async function refreshAll(){
+function fetchLogLevelColor(level){
+  return level==='ok'?'#4ade80':level==='error'?'#f87171':level==='step'?'#7dd3fc':'#cbd5e1';
+}
+function renderFetchLogLines(lines){
+  const box=document.getElementById('fetchLogBox');
+  if(!box)return;
+  box.innerHTML=(lines||[]).map(l=>
+    '<div style="margin:1px 0;"><span style="color:#64748b;">['+esc(l.t)+']</span> '+
+    '<span style="color:'+fetchLogLevelColor(l.level)+';">'+esc(l.msg)+'</span></div>').join('');
+  box.scrollTop=box.scrollHeight;
+}
+function fetchLogDone(ok, msg){
+  const statusBox=document.getElementById('fetchLogStatus');
+  const btn=document.getElementById('btn-refresh');
+  const label=document.getElementById('btn-refresh-label');
+  if(btn){btn.disabled=false;btn.classList.remove('loading');}
+  if(label){label.textContent='立即更新';}
+  if(statusBox){
+    statusBox.innerHTML='<span style="color:'+(ok?'#4ade80':'#f87171')+';font-size:15px;">'+(ok?'✓':'✗')+'</span> '+
+      '<span style="color:'+(ok?'#4ade80':'#f87171')+';">'+esc(msg)+'</span>';
+  }
+  const rb=document.getElementById('btn-fetchlog-refresh');
+  if(rb&&ok)rb.style.display='inline-flex';
+}
+let _flTimer=null, _flRunId=null, _flTicks=0, _flRunning=false;
+function stopFetchPoll(){
+  if(_flTimer){clearInterval(_flTimer);_flTimer=null;}
+  _flRunning=false;
+}
+async function pollFetchLog(){
+  if(!_flRunId)return;
+  try{
+    const r=await api('/api/refresh/log?run_id='+encodeURIComponent(_flRunId));
+    if(r&&r.ok){
+      renderFetchLogLines(r.lines);
+      const st=document.getElementById('fetchLogStatusText');
+      if(r.status==='running'){
+        if(st)st.textContent='正在抓取…（'+(r.lines||[]).length+' 步）';
+        if(++_flTicks>300){stopFetchPoll();fetchLogDone(false,'抓取耗时过长，已停止等待');}
+      }else{
+        stopFetchPoll();
+        fetchLogDone(r.status!=='error', r.status!=='error'?'抓取完成':'抓取完成（有失败，详见日志）');
+      }
+    }else{
+      if(r&&r.need_login){stopFetchPoll();fetchLogDone(false,'登录已过期，请重新登录');return;}
+      if(++_flTicks>60){stopFetchPoll();fetchLogDone(false,'读不到日志：'+((r&&r.error)||'未知错误'));}
+    }
+  }catch(e){
+    if(++_flTicks>60){stopFetchPoll();fetchLogDone(false,'连接日志失败');}
+  }
+}
+function refreshAll(){
+  // 后台抓取仍在进行时，再次点击"立即更新"只重新打开日志弹窗并续上轮询，不重复发起抓取
+  if(_flRunning && _flRunId){
+    openModal('fetchLogModal');
+    if(!_flTimer){_flTicks=0;_flTimer=setInterval(pollFetchLog,800);pollFetchLog();}
+    return;
+  }
+  // 空闲时：先弹确认框，确认后才真正开始抓取
+  confirmModal('确定要重新抓取各行最新净值数据吗？抓取过程可能需要几十秒。',doRefresh,
+    {title:'刷新数据',okText:'确认刷新',danger:false});
+}
+async function doRefresh(){
   const btn=document.getElementById('btn-refresh');
   const label=document.getElementById('btn-refresh-label');
   btn.disabled=true;btn.classList.add('loading');label.textContent='更新中…';
-  const res=await api('/api/refresh',{method:'POST'});
-  btn.disabled=false;btn.classList.remove('loading');label.textContent='立即更新';
-  if(res.ok){toast('数据已更新');setTimeout(()=>location.reload(),400);}
-  else{toast('部分更新失败：'+JSON.stringify(res.fails),false);}
+
+  // 打开日志弹窗
+  const statusBox=document.getElementById('fetchLogStatus');
+  statusBox.innerHTML='<span class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:rf-spin .9s linear infinite;"></span><span id="fetchLogStatusText">正在连接…</span>';
+  statusBox.style.display='flex';
+  document.getElementById('fetchLogBox').innerHTML='<div style="color:#64748b;">正在启动抓取任务…</div>';
+  document.getElementById('btn-fetchlog-refresh').style.display='none';
+  openModal('fetchLogModal');
+
+  // 第一步：start（后台抓取，接口 0.2 秒返回 run_id，不触发网关 60s 超时）
+  let started;
+  try{ started=await api('/api/refresh/start',{method:'POST',body:'{}'}); }
+  catch(e){ fetchLogDone(false,'无法连接服务器：'+(e.message||e));return; }
+  if(!started||started.ok!==true){
+    const msg=(started&&started.need_login)?'登录已过期，请重新登录':((started&&started.error)||'启动抓取失败');
+    fetchLogDone(false,msg);
+    document.getElementById('fetchLogBox').innerHTML='<div style="color:#f87171;white-space:pre-wrap;">'+esc(msg)+'</div>';
+    return;
+  }
+  if(!started.run_id){fetchLogDone(false,'服务器未返回任务编号');return;}
+
+  // 第二步：轮询日志（start 与 log 都经线上实测可正常往返）
+  _flRunId=started.run_id;_flTicks=0;_flRunning=true;
+  if(_flTimer)clearInterval(_flTimer);
+  _flTimer=setInterval(pollFetchLog,800);
+  pollFetchLog();
+}
+function closeFetchLog(){
+  // 关闭弹窗只停轮询，保留 _flRunning/_flRunId；再次点击"立即更新"会重开弹窗并续上轮询
+  if(_flTimer){clearInterval(_flTimer);_flTimer=null;}
+  const btn=document.getElementById('btn-refresh');
+  const label=document.getElementById('btn-refresh-label');
+  if(btn){btn.disabled=false;btn.classList.remove('loading');}
+  if(label){label.textContent='立即更新';}
+  closeModal('fetchLogModal');
 }
 
 async function refreshHolding(id){
@@ -1404,5 +1520,24 @@ async function showDetail(id){
 document.querySelectorAll('.modal-mask').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')});
 });
+
+// 页面加载后：若后台仍有抓取任务在跑（刷新前发起的），恢复按钮"更新中"状态并续上轮询。
+// 不自动弹窗以免打扰；用户此时点"更新中/立即更新"按钮会走 refreshAll 分支直接打开日志弹窗。
+(async function restoreActiveFetch(){
+  try{
+    const r=await api('/api/refresh/active');
+    if(r&&r.ok&&r.running&&r.run_id){
+      _flRunId=r.run_id;_flRunning=true;_flTicks=0;
+      const btn=document.getElementById('btn-refresh');
+      const label=document.getElementById('btn-refresh-label');
+      // 保持可点击：用户此时点按钮应打开日志弹窗（走 refreshAll 的运行中分支），不能禁用
+      if(btn){btn.disabled=false;btn.classList.add('loading');}
+      if(label){label.textContent='更新中…';}
+      if(_flTimer)clearInterval(_flTimer);
+      _flTimer=setInterval(pollFetchLog,800);
+      pollFetchLog();
+    }
+  }catch(e){}
+})();
 </script>
 {% endblock %}

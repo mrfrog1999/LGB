@@ -505,31 +505,57 @@ def dashboard_data():
             "additions": additions}
 
 
-def daily_update():
+def daily_update(log=None):
     """每日定时任务：刷新所有持仓产品 → 重算快照。
+
+    log: 可选回调 log(message, level)，用于把抓取过程实时输出给前端日志面板。
+         level ∈ {info, ok, error, step}。不传则静默（兼容定时任务与旧调用）。
 
     返回 (成功数, 失败列表, 详情)
     """
+    def emit(msg, level="info"):
+        if log:
+            try:
+                log(msg, level)
+            except Exception:
+                pass
+
     holdings = db.list_holdings(active_only=True)
     # 按产品去重，避免同一产品多笔持仓重复抓取
     products = {}
     for h in holdings:
         products[h["product_code"]] = h["product_name"]
 
+    total = len(products)
+    emit(f"开始抓取，共 {total} 只产品（已按产品代码去重）", "step")
+    if total == 0:
+        emit("没有可抓取的持仓产品", "info")
+
     ok, fails, details = 0, [], []
-    for code, name in products.items():
+    for idx, (code, name) in enumerate(products.items(), 1):
+        bank = detect_bank(code, name)
+        bank_label = BANK_LABELS.get(bank, bank)
+        emit(f"[{idx}/{total}] {bank_label} · {name}：正在请求官网净值…", "info")
         try:
-            refresh_product(code, name, deep=False)
+            n = refresh_product(code, name, deep=False)
             ok += 1
-            details.append(f"✓ {name}：净值数据已更新")
+            tail = f"，入库 {n} 条" if n else "，无新增记录"
+            line = f"{name}：净值数据已更新{tail}"
+            details.append("✓ " + line)
+            emit(line, "ok")
         except Exception as e:
             fails.append(f"{name}: {e}")
-            details.append(f"✗ {name}：{e}")
+            line = f"{name}：抓取失败 - {e}"
+            details.append("✗ " + line)
+            emit(line, "error")
 
     # 重算所有持仓
+    emit(f"抓取结束，正在重算 {len(holdings)} 笔持仓收益快照…", "step")
     for h in holdings:
         rebuild_holding(h["id"])
 
+    summary = f"全部完成：成功 {ok} 只，失败 {len(fails)} 只"
+    emit(summary, "step")
     return ok, fails, details
 
 

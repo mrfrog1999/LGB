@@ -2,7 +2,7 @@
 import os
 
 # 应用版本号：唯一来源，由 bump_version.py 在每次推送 GitHub 前自动递增
-APP_VERSION = "v1.0.7"
+APP_VERSION = "v1.0.8"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
@@ -40,9 +40,13 @@ SPDB_SITE_URL = "https://www.spdb-wm.com/financialProducts/"
 DEFAULT_PUSH_HOUR = int(os.environ.get("PUSH_HOUR", "9"))
 DEFAULT_PUSH_MINUTE = int(os.environ.get("PUSH_MINUTE", "0"))
 
-# 下午补充抓取时间（仅更新数据，不发邮件）
+# 下午补充抓取时间（仅更新数据，不发邮件）——作为 fetch_times 未配置时的兜底默认
 SECOND_FETCH_HOUR = int(os.environ.get("SECOND_FETCH_HOUR", "14"))
 SECOND_FETCH_MINUTE = int(os.environ.get("SECOND_FETCH_MINUTE", "0"))
+
+# 自动抓取时间点列表（可配置多个，仅抓数据不发邮件）。
+# 真正生效值存数据库 settings.fetch_times（JSON 数组），此处仅作初始默认。
+DEFAULT_FETCH_TIMES = [f"{SECOND_FETCH_HOUR:02d}:{SECOND_FETCH_MINUTE:02d}"]
 
 # 每日自动备份并发送邮箱（默认下午 16:00，默认关闭，由用户在设置页开启）
 DEFAULT_BACKUP_HOUR = int(os.environ.get("BACKUP_HOUR", "16"))

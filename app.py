@@ -1,6 +1,8 @@
 """龙钱包收益监控 - Flask Web 服务 + 后台定时任务。"""
 import logging
 import hmac
+import threading
+import uuid
 from datetime import datetime
 
 from functools import wraps
@@ -84,6 +86,45 @@ def inject_user():
     }
 
 
+# ---------------- 抓取日志（存 SQLite，多实例/多 worker 共享，供前端轮询） ----------------
+# 说明：早期用进程内存 dict，发布平台多实例时 start 与轮询落到不同进程，
+#       轮询读不到日志导致前端一直转圈。改为 db.fetch_logs 表共享存储。
+def _log_new(run_id):
+    db.fetch_log_new(run_id)
+
+
+def _log_append(run_id, msg, level="info"):
+    db.fetch_log_append(run_id, msg, level)
+
+
+def _log_finish(run_id, status):
+    db.fetch_log_finish(run_id, status)
+
+
+def _make_run_id():
+    return datetime.now().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
+
+
+def _run_fetch_async(run_id):
+    """在后台线程执行抓取并逐行写入日志，结束置状态。
+
+    抓取耗时可能几十秒（网络请求 + TLS 重协商），必须在后台线程跑，
+    否则同步长请求会占住 Web 线程，导致前端轮询日志的请求排队、卡在"正在连接"。
+    """
+    def emit(msg, level="info"):
+        logger.info(msg)
+        _log_append(run_id, msg, level)
+
+    try:
+        ok, fails, details = service.daily_update(log=emit)
+        _log_append(run_id, f"抓取完成：成功 {ok} 只，失败 {len(fails)} 只", "step")
+        _log_finish(run_id, "error" if fails else "ok")
+    except Exception as e:
+        logger.exception("后台抓取异常")
+        _log_append(run_id, f"抓取异常: {e}", "error")
+        _log_finish(run_id, "error")
+
+
 # ---------------- 后台定时任务 ----------------
 scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
 
@@ -115,14 +156,33 @@ def scheduled_job():
         logger.error(f"定时任务异常: {e}")
 
 
-def afternoon_fetch_job():
-    """下午定时：仅抓取更新数据 + 重算快照，不发邮件。"""
-    logger.info("=== 执行下午补充抓取任务 ===")
+def fetch_job(run_id=None, label="定时抓取"):
+    """通用抓取任务：仅抓取更新数据 + 重算快照，不发邮件。
+
+    run_id 传入时，把每一步日志写入内存日志区供前端查看。
+    """
+    logger.info(f"=== 执行{label}任务 ===")
+
+    def emit(msg, level="info"):
+        logger.info(msg)
+        if run_id:
+            _log_append(run_id, msg, level)
+
     try:
-        ok, fails, details = service.daily_update()
-        logger.info(f"下午抓取完成: 成功 {ok} 只" + (f"，失败 {len(fails)} 只: {fails}" if fails else ""))
+        ok, fails, details = service.daily_update(log=emit)
+        logger.info(f"{label}完成: 成功 {ok} 只" + (f"，失败 {len(fails)} 只: {fails}" if fails else ""))
+        if run_id:
+            _log_finish(run_id, "error" if fails else "ok")
     except Exception as e:
-        logger.error(f"下午抓取任务异常: {e}")
+        logger.error(f"{label}任务异常: {e}")
+        if run_id:
+            _log_append(run_id, f"任务异常: {e}", "error")
+            _log_finish(run_id, "error")
+
+
+def afternoon_fetch_job():
+    """兼容旧调用：下午补充抓取。"""
+    fetch_job(label="下午补充抓取")
 
 
 def backup_job():
@@ -149,15 +209,18 @@ def setup_scheduler():
     minute = int(s.get("push_minute") or config.DEFAULT_PUSH_MINUTE)
     backup_hour = int(s.get("backup_hour") or config.DEFAULT_BACKUP_HOUR)
     backup_minute = int(s.get("backup_minute") or config.DEFAULT_BACKUP_MINUTE)
+    fetch_times = db.get_fetch_times()
     scheduler.remove_all_jobs()
     # 主任务：每天指定时间更新数据 + 邮件推送
     scheduler.add_job(scheduled_job, "cron", hour=hour, minute=minute, id="daily_push", replace_existing=True)
-    # 补充任务：每天下午抓取更新数据（不发邮件）
-    scheduler.add_job(
-        afternoon_fetch_job, "cron",
-        hour=config.SECOND_FETCH_HOUR, minute=config.SECOND_FETCH_MINUTE,
-        id="afternoon_fetch", replace_existing=True,
-    )
+    # 抓取任务：按用户在设置页配置的时间点，注册多个纯抓取任务（不发邮件）
+    for idx, t in enumerate(fetch_times):
+        fh, fm = (int(x) for x in t.split(":"))
+        scheduler.add_job(
+            fetch_job, "cron", hour=fh, minute=fm,
+            kwargs={"label": f"定时抓取 {t}"},
+            id=f"fetch_{idx}", replace_existing=True,
+        )
     # 备份任务：每天指定时间导出数据并发送到邮箱（开关在任务内部判断）
     scheduler.add_job(
         backup_job, "cron",
@@ -166,7 +229,7 @@ def setup_scheduler():
     )
     logger.info(
         f"定时任务已设置: 主任务每天 {hour:02d}:{minute:02d}，"
-        f"下午抓取每天 {config.SECOND_FETCH_HOUR:02d}:{config.SECOND_FETCH_MINUTE:02d}，"
+        f"自动抓取时间点 {fetch_times}，"
         f"自动备份每天 {backup_hour:02d}:{backup_minute:02d}"
     )
 
@@ -620,10 +683,60 @@ def api_delete_withdrawal(wid):
 
 
 # ---------------- API：刷新 ----------------
+@app.route("/api/refresh/start", methods=["POST"])
+def api_refresh_start():
+    """发起一次抓取：后台线程执行，立即返回 run_id；前端据此轮询日志。"""
+    run_id = _make_run_id()
+    _log_new(run_id)
+    _log_append(run_id, "已创建抓取任务，正在后台抓取…", "step")
+    t = threading.Thread(target=_run_fetch_async, args=(run_id,), daemon=True)
+    t.start()
+    return jsonify({"ok": True, "run_id": run_id})
+
+
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
-    ok, fails, details = service.daily_update()
-    return jsonify({"ok": len(fails) == 0, "details": details, "success": ok, "fails": fails})
+    """同步执行抓取，一次性返回完整日志行。
+
+    不依赖 run_id / 轮询 / 跨请求状态，规避多实例部署下 start 与轮询分落不同实例、
+    或两阶段请求被网关串行化导致的"一直正在连接"问题。抓取本身可能耗时数十秒。
+    """
+    lines = []
+
+    def emit(msg, level="info"):
+        lines.append({"t": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": str(msg)})
+
+    try:
+        ok, fails, details = service.daily_update(log=emit)
+        return jsonify({"ok": len(fails) == 0, "lines": lines, "details": details,
+                        "success": ok, "fails": fails})
+    except Exception as e:
+        logger.exception("手动刷新异常")
+        lines.append({"t": datetime.now().strftime("%H:%M:%S"), "level": "error", "msg": f"抓取异常: {e}"})
+        return jsonify({"ok": False, "lines": lines, "details": [f"✗ {e}"],
+                        "success": 0, "fails": [str(e)]})
+
+
+@app.route("/api/refresh/log")
+def api_refresh_log():
+    """按 run_id 返回抓取日志（含状态），供前端模态框轮询。"""
+    run_id = (request.args.get("run_id") or "").strip()
+    entry = db.fetch_log_get(run_id)
+    if entry is None:
+        return jsonify({"ok": False, "error": "未知的任务编号"})
+    return jsonify({
+        "ok": True,
+        "run_id": run_id,
+        "status": entry["status"],
+        "lines": entry["lines"],
+    })
+
+
+@app.route("/api/refresh/active")
+def api_refresh_active():
+    """查询当前是否有后台抓取任务仍在运行，供页面刷新后恢复按钮状态。"""
+    run_id = db.fetch_log_active()
+    return jsonify({"ok": True, "run_id": run_id, "running": bool(run_id)})
 
 
 @app.route("/api/holdings/<int:hid>/refresh", methods=["POST"])
@@ -644,7 +757,7 @@ def api_refresh_holding(hid):
 def api_save_settings():
     body = request.get_json(silent=True) or {}
     allowed = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "mail_from",
-               "mail_to", "push_enabled", "push_hour", "push_minute",
+               "mail_to", "push_enabled", "push_hour", "push_minute", "fetch_times",
                "backup_enabled", "backup_hour", "backup_minute",
                "alert_enabled", "alert_annual",
                "historical_profit", "psbc_historical_profit", "spdb_historical_profit",
@@ -660,6 +773,17 @@ def api_save_settings():
         if v < 0 or v > 20:
             return jsonify({"ok": False, "error": "预警值请填 0 ~ 20 之间的百分数"})
         updates["alert_annual"] = f"{v:g}"
+    if "fetch_times" in updates:
+        raw = updates["fetch_times"]
+        items = raw if isinstance(raw, list) else []
+        if isinstance(raw, str):
+            import json as _json
+            try:
+                parsed = _json.loads(raw)
+                items = parsed if isinstance(parsed, list) else []
+            except (ValueError, TypeError):
+                items = []
+        updates["fetch_times"] = db.normalize_fetch_times(items)
     db.set_settings(updates)
     setup_scheduler()
     return jsonify({"ok": True, "message": "设置已保存"})
