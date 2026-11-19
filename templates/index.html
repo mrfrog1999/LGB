@@ -362,7 +362,7 @@
         <td style="padding:14px 12px;text-align:right;" class="{% if h.profit_rate>=0 %}up{% else %}down{% endif %}">
           {% if h.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(h.profit_rate) }}%</td>
         <td style="padding:14px 12px;text-align:right;">{% if h.latest_annual is not none %}{% if alert_enabled and h.latest_annual < alert_annual %}<span style="color:#c0392b;font-weight:600;" title="低于预警值 {{ '%.2f'|format(alert_annual) }}%"><svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-alert"/></svg> {{ '%.4f'|format(h.latest_annual) }}%</span>{% else %}{{ '%.4f'|format(h.latest_annual) }}%{% endif %}{% else %}-{% endif %}</td>
-        <td style="padding:14px 12px;text-align:right;" class="muted">{{ h.latest_date or '-' }}</td>
+        <td style="padding:14px 12px;text-align:right;">{% if h.latest_date %}<span class="badge badge-date" title="净值归属日：{{ h.latest_date }}">{{ h.latest_date }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
         <td style="text-align:center;white-space:nowrap;padding-right:20px;">
           <button class="btn btn-ghost row-btn" onclick="showDetail({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-eye"/></svg>明细</button>
           {% if is_admin %}
@@ -425,7 +425,7 @@
       {% if h.additions_total>0 %}<span>含追加 +{{ '%.2f'|format(h.additions_total) }}</span>{% endif %}
       {% if h.pending_capital>0 %}<span style="color:#b45309;">待入账 +{{ '%.2f'|format(h.pending_capital) }}</span>{% endif %}
       <span>年化 {% if h.latest_annual is not none %}{% if alert_enabled and h.latest_annual < alert_annual %}<span style="color:#c0392b;font-weight:600;" title="低于预警值 {{ '%.2f'|format(alert_annual) }}%"><svg class="ic" style="width:12px;height:12px;vertical-align:-1px"><use href="#i-alert"/></svg> {{ '%.4f'|format(h.latest_annual) }}%</span>{% else %}{{ '%.4f'|format(h.latest_annual) }}%{% endif %}{% else %}-{% endif %}</span>
-      <span>净值 {{ h.latest_date or '-' }}</span>
+      <span>净值 {% if h.latest_date %}<span class="badge badge-date" title="净值归属日：{{ h.latest_date }}">{{ h.latest_date }}</span>{% else %}<span class="muted">-</span>{% endif %}</span>
     </div>
 
     <div class="hcard-actions">
@@ -1231,7 +1231,7 @@ async function showDetail(id){
     const exp=(s.expense||0)>0?`<span style="color:#c0392b;font-weight:600;">−${s.expense.toFixed(2)}</span>`:'-';
     const inj=(s.injection||0)>0?`<span style="color:#1d4ed8;font-weight:600;">+${s.injection.toFixed(2)}</span>`:'-';
     rows+=`<tr style="border-bottom:1px solid #f0f0f0;">
-      <td style="padding:7px 10px;">${s.nav_date}</td>
+      <td style="padding:7px 10px;"><span class="badge badge-date">${s.nav_date}</span></td>
       <td style="padding:7px 10px;text-align:right;">${s.annual_rate!=null?Number(s.annual_rate).toFixed(4)+'%':'-'}</td>
       <td style="padding:7px 10px;text-align:right;">${s.per_10k!=null?s.per_10k:'-'}</td>
       <td style="padding:7px 10px;text-align:right;color:#c0392b;">+${s.daily_profit.toFixed(4)}</td>

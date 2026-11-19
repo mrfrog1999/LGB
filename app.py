@@ -105,13 +105,33 @@ def scheduled_job():
         logger.error(f"定时任务异常: {e}")
 
 
+def afternoon_fetch_job():
+    """下午定时：仅抓取更新数据 + 重算快照，不发邮件。"""
+    logger.info("=== 执行下午补充抓取任务 ===")
+    try:
+        ok, fails, details = service.daily_update()
+        logger.info(f"下午抓取完成: 成功 {ok} 只" + (f"，失败 {len(fails)} 只: {fails}" if fails else ""))
+    except Exception as e:
+        logger.error(f"下午抓取任务异常: {e}")
+
+
 def setup_scheduler():
     s = db.get_settings()
     hour = int(s.get("push_hour") or config.DEFAULT_PUSH_HOUR)
     minute = int(s.get("push_minute") or config.DEFAULT_PUSH_MINUTE)
     scheduler.remove_all_jobs()
+    # 主任务：每天指定时间更新数据 + 邮件推送
     scheduler.add_job(scheduled_job, "cron", hour=hour, minute=minute, id="daily_push", replace_existing=True)
-    logger.info(f"定时任务已设置: 每天 {hour:02d}:{minute:02d}")
+    # 补充任务：每天下午抓取更新数据（不发邮件）
+    scheduler.add_job(
+        afternoon_fetch_job, "cron",
+        hour=config.SECOND_FETCH_HOUR, minute=config.SECOND_FETCH_MINUTE,
+        id="afternoon_fetch", replace_existing=True,
+    )
+    logger.info(
+        f"定时任务已设置: 主任务每天 {hour:02d}:{minute:02d}，"
+        f"下午抓取每天 {config.SECOND_FETCH_HOUR:02d}:{config.SECOND_FETCH_MINUTE:02d}"
+    )
 
 
 # ---------------- 页面路由 ----------------

@@ -37,5 +37,9 @@ SPDB_SITE_URL = "https://www.spdb-wm.com/financialProducts/"
 DEFAULT_PUSH_HOUR = int(os.environ.get("PUSH_HOUR", "9"))
 DEFAULT_PUSH_MINUTE = int(os.environ.get("PUSH_MINUTE", "0"))
 
+# 下午补充抓取时间（仅更新数据，不发邮件）
+SECOND_FETCH_HOUR = int(os.environ.get("SECOND_FETCH_HOUR", "14"))
+SECOND_FETCH_MINUTE = int(os.environ.get("SECOND_FETCH_MINUTE", "0"))
+
 # 年化预警：某只产品七日年化低于该值（%）时发邮件提醒
 DEFAULT_ALERT_ANNUAL = float(os.environ.get("ALERT_ANNUAL", "1.0"))
