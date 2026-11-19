@@ -1,6 +1,9 @@
 """配置模块：所有可配置项通过环境变量覆盖，默认值适配 Docker 与本地运行。"""
 import os
 
+# 应用版本号：唯一来源，由 bump_version.py 在每次推送 GitHub 前自动递增
+APP_VERSION = "v1.0.1"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
 os.makedirs(DATA_DIR, exist_ok=True)

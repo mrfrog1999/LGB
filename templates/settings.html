@@ -49,7 +49,7 @@
   .sec-head{display:flex;align-items:center;gap:11px;margin-bottom:8px}
   .sec-ico{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;
     justify-content:center;font-size:16px;flex:0 0 auto}
-  .sec-ico.indigo{background:#eef2ff;color:#4f46e5}
+  .sec-ico.indigo{background:#fef2f2;color:#ef4444}
   .sec-ico.blue{background:#e0f2fe;color:#0284c7}
   .sec-ico.amber{background:#fef3c7;color:#d97706}
   .sec-ico.teal{background:#ccfbf1;color:#0d9488}
@@ -57,23 +57,23 @@
   .sec-desc{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:20px}
   .page-title{display:flex;align-items:center;gap:12px}
   .page-title h1{font-size:25px;font-weight:750;letter-spacing:-.5px}
-  .page-badge{font-size:11px;font-weight:700;color:var(--brand);background:#eef2ff;
+  .page-badge{font-size:11px;font-weight:700;color:var(--brand);background:#fef2f2;
     padding:4px 11px;border-radius:20px}
   .form-sep{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:6px 0 18px}
   .switch-row,.toggle-row{transition:.2s}
   /* ===== 账号列表 ===== */
   .user-item{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--border);
     border-radius:11px;margin-bottom:9px;background:#fff;transition:.2s}
-  .user-item:hover{border-color:#c7d2fe;background:#fafbff}
+  .user-item:hover{border-color:#ffd9d4;background:#fff8f7}
   .user-item .ua{width:36px;height:36px;border-radius:10px;flex:0 0 auto;display:flex;align-items:center;
-    justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5);overflow:hidden}
+    justify-content:center;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(135deg,#fb7137,#ef4444);overflow:hidden}
   .user-item .ua.avatar-svg{background:transparent;padding:0}
   .user-item .ua.avatar-svg svg{width:100%;height:100%;display:block;border-radius:10px}
   .user-item .uinfo{flex:1;min-width:0}
   .user-item .uinfo b{font-size:13.5px;display:block}
   .user-item .uinfo small{font-size:11px;color:var(--muted)}
   .role-tag{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
-  .role-tag.admin{background:#eef2ff;color:#4f46e5}
+  .role-tag.admin{background:#fef2f2;color:#ef4444}
   .role-tag.member{background:#f1f5f9;color:#64748b}
   .u-actions{display:flex;gap:6px}
   .u-actions button{border:none;background:#f1f4f9;width:28px;height:28px;border-radius:8px;cursor:pointer;
@@ -606,8 +606,8 @@ async function saveSettings(){
 async function runDiag(){
   const btn=document.getElementById('btn-diag');
   const retry=document.getElementById('btn-diag-retry');
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner" style="border-color:#bfdbfe;border-top-color:var(--brand)"></span> 检测中…';}
-  if(retry){retry.disabled=true;retry.innerHTML='<span class="spinner" style="border-color:#bfdbfe;border-top-color:#fff"></span> 检测中…';}
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner" style="border-color:#fecaca;border-top-color:var(--brand)"></span> 检测中…';}
+  if(retry){retry.disabled=true;retry.innerHTML='<span class="spinner" style="border-color:#fecaca;border-top-color:#fff"></span> 检测中…';}
   document.getElementById('diagContent').innerHTML=
     '<div class="diag-shimmer" style="text-align:center;padding:34px;color:var(--muted);font-size:13px;">'+
     '<div style="margin-bottom:10px;"><svg class="ic" style="width:30px;height:30px;stroke-width:1.6"><use href="#i-activity"/></svg></div>正在逐个探测建行 / 邮储 / 浦发站点，约需数秒…</div>';

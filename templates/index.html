@@ -5,8 +5,8 @@
   /* ===== 顶部操作栏 ===== */
   .btn-expense{background:#fff5f4;color:#e0392b;border:1.5px solid #fad9d5}
   .btn-expense:hover{background:#ffe9e6;border-color:#f3b8b0;transform:translateY(-1px)}
-  .btn-import{background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe}
-  .btn-import:hover{background:#ede9fe;border-color:#c4b5fd;transform:translateY(-1px)}
+  .btn-import{background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca}
+  .btn-import:hover{background:#fff1f0;border-color:#fca5a5;transform:translateY(-1px)}
   .top-actions .btn{flex:1 1 0;min-width:0;justify-content:center}
   .top-actions .btn-ghost{background:#fff;border:1.5px solid var(--border);color:#475569}
   .top-actions .btn-ghost:hover{background:#f8fafc;border-color:#cfd8e6;color:var(--brand)}
@@ -19,17 +19,17 @@
   .summary-grid > .card{position:relative;overflow:hidden}
   .stat-top{display:flex;align-items:center;gap:9px;margin-bottom:14px}
   .stat-ico{width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;
-    justify-content:center;font-size:15px;background:#eef2ff;color:var(--brand);flex:0 0 auto}
+    justify-content:center;font-size:15px;background:#fef2f2;color:var(--brand);flex:0 0 auto}
   .stat-label{font-size:12.5px;color:var(--muted);font-weight:600}
   .stat-num{font-size:27px;font-weight:750;letter-spacing:-.8px;line-height:1.1;
     font-variant-numeric:tabular-nums}
   .stat-sub{font-size:11px;margin-top:7px;color:var(--muted)}
-  .stat-card.hero{background:linear-gradient(135deg,#4f46e5 0%,#4338ca 55%,#3730a3 100%);border:none;
-    box-shadow:0 8px 24px rgba(79,70,229,.28)}
+  .stat-card.hero{background:linear-gradient(135deg,#ef4444 0%,#dc2626 55%,#b91c1c 100%);border:none;
+    box-shadow:0 8px 24px rgba(239,68,68,.28)}
   .stat-card.hero::before{content:'';position:absolute;width:160px;height:160px;right:-50px;top:-60px;
     border-radius:50%;background:rgba(255,255,255,.08)}
   .stat-card.hero .stat-ico{background:rgba(255,255,255,.18);color:#fff}
-  .stat-card.hero .stat-label,.stat-card.hero .stat-sub{color:#c7d2fe}
+  .stat-card.hero .stat-label,.stat-card.hero .stat-sub{color:#ffd9d4}
   .stat-card.hero .stat-num{color:#fff}
   .card:hover{box-shadow:var(--shadow-hover)}
   /* ===== 分银行小计 ===== */
@@ -274,7 +274,7 @@
     </div>
   </div>
   <div class="card" style="padding:19px;">
-    <div class="stat-top"><span class="stat-ico" style="background:#f5f3ff;color:#7c3aed"><svg class="ic"><use href="#i-target"/></svg></span><span class="stat-label">收益率 · {{ data.portfolio.count }} 笔持仓</span></div>
+    <div class="stat-top"><span class="stat-ico" style="background:#fef2f2;color:#ef4444"><svg class="ic"><use href="#i-target"/></svg></span><span class="stat-label">收益率 · {{ data.portfolio.count }} 笔持仓</span></div>
     <div class="stat-num up">
       {% if data.portfolio.profit_rate>=0 %}+{% endif %}{{ '%.4f'|format(data.portfolio.profit_rate) }}%
     </div>
@@ -398,6 +398,7 @@
           {% if is_admin %}
           <button class="btn btn-ghost row-btn" onclick="openEditModal({{ h.id }})" title="编辑持仓"><svg class="ic" style="width:14px;height:14px"><use href="#i-edit"/></svg>编辑</button>
           <button class="btn btn-ghost row-btn" onclick="openCapitalModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>加仓</button>
+          <button class="btn btn-ghost row-btn" style="color:#e0392b" onclick="openWithdrawModal({{ h.id }})" title="减仓：从这只产品取出部分本金"><svg class="ic" style="width:14px;height:14px"><use href="#i-minus"/></svg>减仓</button>
           <button class="btn btn-ghost row-btn" onclick="refreshHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-refresh"/></svg></button>
           <button class="btn btn-danger row-btn" onclick="delHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg>删</button>
           {% endif %}
@@ -463,6 +464,7 @@
       {% if is_admin %}
       <button class="btn btn-ghost" onclick="openEditModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-edit"/></svg>编辑</button>
       <button class="btn btn-ghost" onclick="openCapitalModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg>加仓</button>
+      <button class="btn btn-ghost" style="color:#e0392b" onclick="openWithdrawModal({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-minus"/></svg>减仓</button>
       <button class="btn btn-ghost" onclick="refreshHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-refresh"/></svg></button>
       <button class="btn btn-danger" onclick="delHolding({{ h.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg>删除</button>
       {% endif %}
@@ -551,6 +553,40 @@
   </div>
 </div>
 
+<!-- 减仓弹窗（针对单只产品记录支出） -->
+<div class="modal-mask" id="withdrawModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-head">
+      <h3>减仓 · 取出本金</h3>
+      <button class="modal-close" onclick="closeModal('withdrawModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>当前产品</label>
+        <div id="w-product" style="padding:11px 13px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;font-weight:600;"></div>
+        <div class="hint">本次减仓只从这只产品扣减，其他产品不受影响</div>
+      </div>
+      <div class="form-row">
+        <label>减仓金额（元）</label>
+        <input type="number" id="w-amount" step="0.01" placeholder="如 1000.00">
+      </div>
+      <div class="form-row">
+        <label>减仓日期</label>
+        <input type="date" id="w-date">
+        <div class="hint">从该日起，取出的本金不再计息；之前已赚收益保留</div>
+      </div>
+      <div class="form-row">
+        <label>备注（可选）</label>
+        <input type="text" id="w-note" placeholder="如：赎回部分本金">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('withdrawModal')">取消</button>
+      <button class="btn btn-primary" id="btn-withdraw" onclick="submitWithdraw()">确认减仓并重算</button>
+    </div>
+  </div>
+</div>
+
 <!-- 买入新产品弹窗（按银行标签切换选择产品） -->
 <div class="modal-mask" id="buyModal">
   <div class="modal" style="max-width:560px;">
@@ -576,7 +612,7 @@
         <div class="hint" id="searchHint">当前银行：建行。输入关键词后自动搜索，从结果中点选产品</div>
       </div>
 
-      <div id="pickedBox" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+      <div id="pickedBox" style="display:none;background:#eff6ff;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
         <div style="font-size:12px;color:#64748b;">已选择产品</div>
         <div id="pickedName" style="font-weight:600;margin-top:2px;"></div>
         <div id="pickedCode" class="muted" style="font-size:11px;"></div>
@@ -612,14 +648,14 @@
             <input type="number" id="imp-hist-profit" step="0.01" placeholder="市值里已含的累计收益">
           </div>
         </div>
-        <div id="imp-derived" style="margin-top:14px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 14px;">
+        <div id="imp-derived" style="margin-top:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
             <span style="color:#64748b;">反推本金 = 市值 − 历史收益</span>
-            <b id="imp-principal" style="color:#6d28d9;font-variant-numeric:tabular-nums;">¥0.00</b>
+            <b id="imp-principal" style="color:#dc2626;font-variant-numeric:tabular-nums;">¥0.00</b>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:13px;">
             <span style="color:#64748b;">起算日期</span>
-            <b id="imp-buy-date" style="color:#6d28d9;"></b>
+            <b id="imp-buy-date" style="color:#dc2626;"></b>
           </div>
         </div>
         <div class="hint" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:10px;border-radius:8px;line-height:1.8;margin-top:12px;">
@@ -648,7 +684,7 @@
       <button class="modal-close" onclick="closeModal('editModal')"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
     <div class="modal-body">
-      <div id="edit-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:11px 14px;margin-bottom:16px;">
+      <div id="edit-info" style="background:#eff6ff;border:1px solid #fecaca;border-radius:10px;padding:11px 14px;margin-bottom:16px;">
         <div id="edit-prod-name" style="font-weight:600;"></div>
         <div id="edit-prod-code" class="muted" style="font-size:11px;margin-top:2px;"></div>
       </div>
@@ -702,14 +738,14 @@
             <input type="number" id="ed-hist-profit2" step="0.01" placeholder="市值里已含的累计收益">
           </div>
         </div>
-        <div id="ed-derived" style="margin-top:14px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px 14px;">
+        <div id="ed-derived" style="margin-top:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
             <span style="color:#64748b;">反推本金 = 市值 − 历史收益</span>
-            <b id="ed-principal-derived" style="color:#6d28d9;font-variant-numeric:tabular-nums;">¥0.00</b>
+            <b id="ed-principal-derived" style="color:#dc2626;font-variant-numeric:tabular-nums;">¥0.00</b>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:13px;">
             <span style="color:#64748b;">起算日期</span>
-            <b id="ed-buy-date-display" style="color:#6d28d9;"></b>
+            <b id="ed-buy-date-display" style="color:#dc2626;"></b>
           </div>
         </div>
         <div class="form-row" style="margin-top:14px;">
@@ -918,7 +954,7 @@ function updateDerived(){
   const principal=mv-hp;
   const el=document.getElementById('imp-principal');
   el.textContent='¥'+(principal>0?principal.toFixed(2):'0.00');
-  el.style.color = principal<0 ? '#e0392b' : '#6d28d9';
+  el.style.color = principal<0 ? '#e0392b' : '#dc2626';
 }
 
 document.getElementById('imp-market-value').addEventListener('input',updateDerived);
@@ -1091,6 +1127,39 @@ async function submitExpense(){
   else{toast(res.error||'保存失败',false);}
 }
 
+// 减仓：针对单只产品记录支出
+let withdrawHolding=null;
+function openWithdrawModal(hid){
+  const h=HOLDINGS.find(x=>x.id===hid);
+  if(!h){toast('产品不存在',false);return;}
+  if(!h.settled){toast('该产品本金尚未入账，暂不能减仓',false);return;}
+  withdrawHolding=h;
+  const bankLabel=BANK_LABEL[h.bank]||'';
+  document.getElementById('w-product').innerHTML=
+    escapeHtml(h.name)+' <span class="badge badge-'+h.bank+'" style="margin-left:6px">'+bankLabel+'</span>';
+  document.getElementById('w-amount').value='';
+  document.getElementById('w-note').value='';
+  document.getElementById('w-date').value=todayStr();
+  openModal('withdrawModal');
+}
+
+async function submitWithdraw(){
+  if(!withdrawHolding){toast('未选择产品',false);return;}
+  const amount=document.getElementById('w-amount').value.trim();
+  const expense_date=document.getElementById('w-date').value;
+  const note=document.getElementById('w-note').value.trim();
+  if(!amount||!expense_date||parseFloat(amount)<=0){toast('请填写减仓金额和日期',false);return;}
+  const btn=document.getElementById('btn-withdraw');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 重算中...';
+  const res=await api('/api/withdrawals',{method:'POST',
+    body:JSON.stringify({amount,expense_date,note,bank:withdrawHolding.bank,holding_id:withdrawHolding.id})});
+  btn.disabled=false;btn.textContent='确认减仓并重算';
+  if(res.ok){
+    toast('减仓已记录，已从该产品扣减并重算');
+    closeModal('withdrawModal');setTimeout(()=>location.reload(),400);
+  }else{toast(res.error||'保存失败',false);}
+}
+
 async function delWithdrawal(id){
   confirmModal('确定删除这条支出记录？系统会重算收益。',async()=>{
     const res=await api('/api/withdrawals/'+id,{method:'DELETE'});
@@ -1146,7 +1215,7 @@ function updateEditDerived(){
   const principal=mv-hp;
   const el=document.getElementById('ed-principal-derived');
   el.textContent='¥'+(principal>0?principal.toFixed(2):'0.00');
-  el.style.color = principal<0 ? '#e0392b' : '#6d28d9';
+  el.style.color = principal<0 ? '#e0392b' : '#dc2626';
 }
 document.getElementById('ed-market-value').addEventListener('input',updateEditDerived);
 document.getElementById('ed-hist-profit2').addEventListener('input',updateEditDerived);

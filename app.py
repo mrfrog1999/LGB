@@ -72,6 +72,7 @@ def inject_user():
         "current_user": u,
         "is_admin": bool(u and u["role"] == "admin"),
         "sharecode_fallback": config.SHARECODE_FALLBACK,
+        "app_version": config.APP_VERSION,
     }
 
 
@@ -543,28 +544,32 @@ def api_add_withdrawal():
         return jsonify({"ok": False, "error": "支出日期格式不正确"})
 
     bank = (body.get("bank") or "").strip() or None
-    holding_id = body.get("holding_id")
+    raw_hid = body.get("holding_id")
     if bank not in (None, "ccb", "psbc", "spdb"):
         return jsonify({"ok": False, "error": "未知银行"})
 
-    if bank == "ccb":
-        # 建行口径：金额在全部建行产品间平均分摊，不需要指定产品
-        holding_id = None
-    elif bank in ("psbc", "spdb"):
-        # 邮储 / 浦发口径：必须选一只产品，支出只从该产品扣减
+    if raw_hid not in (None, "", 0, "0"):
+        # 指定产品扣减（减仓 / 单只产品支出）：金额全部从这一只产品扣掉。
+        # 适用于所有银行；建行顶部统一「记录支出」不传 holding_id，仍走平均分摊。
         try:
-            holding_id = int(holding_id)
+            holding_id = int(raw_hid)
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "请选择要扣减的产品"})
+            return jsonify({"ok": False, "error": "产品编号不正确"})
         h = db.get_holding(holding_id)
         if not h:
             return jsonify({"ok": False, "error": "所选产品不存在"})
-        if service.detect_bank(h["product_code"], h["product_name"]) != bank:
+        hbank = service.detect_bank(h["product_code"], h["product_name"])
+        if bank and hbank != bank:
             return jsonify({"ok": False, "error": "所选产品与银行不匹配"})
+        bank = hbank  # 以产品实际所属银行为准
         if h.get("settle_date") and h["settle_date"] > datetime.now().strftime("%Y-%m-%d"):
-            return jsonify({"ok": False, "error": "该产品尚未入账，暂不能登记支出"})
+            return jsonify({"ok": False, "error": "该产品尚未入账，暂不能减仓"})
     else:
+        # 未指定产品：按银行口径
         holding_id = None
+        if bank in ("psbc", "spdb"):
+            return jsonify({"ok": False, "error": "请选择要扣减的产品"})
+        # 建行 / 未指定银行：金额在该银行全部已入账产品间平均分摊
 
     wid = db.add_withdrawal(amount, expense_date, note, bank=bank, holding_id=holding_id)
     service.rebuild_all()   # 支出后重算所有持仓

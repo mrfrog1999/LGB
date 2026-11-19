@@ -4,11 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180.png">
   <title>{% block title %}现金理财监控{% endblock %}</title>
   <style>
     :root{
       --bg:#f4f6fb; --card:#fff; --border:#e9edf4; --text:#1e293b;
-      --muted:#8b97ab; --brand:#4f46e5; --brand2:#6366f1;
+      --muted:#8b97ab; --brand:#ef4444; --brand2:#fb7137;
       --up:#e0392b; --down:#16a34a;
       --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.05);
       --shadow-hover:0 4px 10px rgba(16,24,40,.05),0 16px 40px rgba(16,24,40,.1);
@@ -19,8 +24,8 @@
     html,body{overflow-x:hidden}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Arial,sans-serif;
       background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;
-      background-image:radial-gradient(1200px 420px at 12% -8%,rgba(99,102,241,.08),transparent 60%),
-                       radial-gradient(1000px 380px at 92% -12%,rgba(14,165,233,.07),transparent 60%);
+      background-image:radial-gradient(1200px 420px at 12% -8%,rgba(251,113,55,.08),transparent 60%),
+                       radial-gradient(1000px 380px at 92% -12%,rgba(245,158,11,.07),transparent 60%);
       background-attachment:fixed;
       /* 禁止双击缩放：交互元素统一用 manipulation，双击只触发点击不做缩放 */
       touch-action:manipulation;-webkit-touch-callout:none}
@@ -33,24 +38,24 @@
       border-bottom:1px solid rgba(233,237,244,.9);padding:0 32px;height:66px;
       display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
     .logo{display:flex;align-items:center;gap:11px;font-size:17px;font-weight:700;letter-spacing:-.2px}
-    .logo .dot{width:30px;height:30px;border-radius:9px;
-      background:linear-gradient(135deg,#6366f1,#4f46e5 55%,#4338ca);
-      box-shadow:0 4px 12px rgba(79,70,229,.35),inset 0 1px 1px rgba(255,255,255,.3);
-      position:relative;display:flex;align-items:center;justify-content:center}
-    .logo .dot svg{width:17px;height:17px;color:#fff;stroke-width:2.6}
+    .ver-tag{font-size:11px;font-weight:700;letter-spacing:.2px;color:var(--brand);
+      background:#fef2f2;border:1px solid #fecaca;padding:2px 7px;border-radius:6px;margin-left:-4px}
+    .logo .dot{width:32px;height:32px;border-radius:9px;overflow:hidden;flex:0 0 auto;
+      box-shadow:0 3px 10px rgba(239,68,68,.28)}
+    .logo .dot img{width:100%;height:100%;display:block;object-fit:cover}
     .nav{display:flex;gap:4px;background:#eef1f7;padding:4px;border-radius:12px}
     .nav a{padding:7px 18px;border-radius:9px;color:var(--muted);font-weight:600;font-size:13.5px;transition:.2s}
     .nav a:hover{color:var(--text)}
     .nav a.active{background:#fff;color:var(--brand);box-shadow:0 1px 4px rgba(16,24,40,.1)}
     .user-chip{display:flex;align-items:center;gap:9px;margin-left:6px}
     .user-avatar{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
-      font-size:13px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5);flex:0 0 auto;overflow:hidden}
+      font-size:13px;font-weight:800;color:#fff;background:linear-gradient(135deg,#fb7137,#ef4444);flex:0 0 auto;overflow:hidden}
     .user-avatar.avatar-svg{background:transparent;padding:0}
     .user-avatar.avatar-svg svg{width:100%;height:100%;display:block;border-radius:9px}
     .user-meta{display:flex;flex-direction:column;line-height:1.25}
     .user-meta b{font-size:12.5px;font-weight:700;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .user-role{font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700;margin-top:2px;width:fit-content}
-    .user-role.admin{background:#eef2ff;color:#4f46e5}
+    .user-role.admin{background:#fef2f2;color:#ef4444}
     .user-role.member{background:#f1f5f9;color:#64748b}
     .btn-logout{background:#f1f4f9;border:none;width:30px;height:30px;border-radius:9px;cursor:pointer;
       color:var(--muted);display:flex;align-items:center;justify-content:center;transition:.2s}
@@ -61,9 +66,9 @@
       transition:box-shadow .25s ease,transform .25s ease}
     .btn{border:none;border-radius:10px;padding:10px 18px;font-size:14px;cursor:pointer;font-weight:600;
       transition:all .2s ease;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
-    .btn-primary{background:linear-gradient(135deg,var(--brand),#4338ca);color:#fff;
-      box-shadow:0 4px 12px rgba(79,70,229,.28)}
-    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(79,70,229,.38)}
+    .btn-primary{background:linear-gradient(135deg,var(--brand),#dc2626);color:#fff;
+      box-shadow:0 4px 12px rgba(239,68,68,.28)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(239,68,68,.38)}
     .btn-ghost{background:#f1f4f9;color:var(--text)}
     .btn-ghost:hover{background:#e8ecf4;transform:translateY(-1px)}
     .btn-danger{background:#fef2f2;color:#dc2626}
@@ -91,7 +96,7 @@
     .form-row label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:#475569}
     .form-row input,.form-row select{width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:10px;
       font-size:14px;font-family:inherit;outline:none;transition:.2s;background:#fbfcfe}
-    .form-row input:focus,.form-row select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(79,70,229,.1)}
+    .form-row input:focus,.form-row select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
     .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7}
     /* toast */
     #toast{position:fixed;top:82px;right:24px;z-index:100;display:flex;flex-direction:column;gap:10px}
@@ -121,7 +126,7 @@
     .badge-date{background:#f1f5f9;color:#475569;font-weight:600;letter-spacing:0}
     .prod-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f4f8;transition:.15s;border-radius:8px}
     .prod-item:hover{background:#f6f8fc}
-    .prod-item.selected{background:#eef2ff;box-shadow:inset 3px 0 0 var(--brand)}
+    .prod-item.selected{background:#fef2f2;box-shadow:inset 3px 0 0 var(--brand)}
     .prod-empty{padding:18px;text-align:center;font-size:13px;color:var(--muted)}
     @media (max-width:900px){
       .topbar{padding:8px 14px;height:auto;min-height:54px;flex-wrap:wrap;gap:6px;
@@ -183,14 +188,14 @@
 <symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
 <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
 <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
-<symbol id="avatar-admin" viewBox="0 0 1024 1024"><path d="M511.990738 510.660058H1.33068A510.660058 510.660058 0 1 0 511.990738 0 510.660058 510.660058 0 0 0 1.33068 510.660058z" fill="#1296db"/><path d="M496.041101 430.881001h31.917798v95.753392h-31.917798z" fill="#F4BAC2"/><path d="M512.003087 223.418406a223.418406 223.418406 0 1 0 223.418407 223.418407V223.418406z" fill="#FFFFFF"/><path d="M400.293884 494.698072a15.078983 15.078983 0 0 1-15.955811-15.955812V414.919015a15.955811 15.955811 0 0 1 31.917797 0v63.835595a15.078983 15.078983 0 0 1-15.961986 15.943462z m111.709203 0a15.078983 15.078983 0 0 1-15.955811-15.955812V414.919015a15.955811 15.955811 0 0 1 31.917798 0v63.835595a15.078983 15.078983 0 0 1-15.961987 15.943462z" fill="#1296db"/><path d="M208.256063 921.250504c0-122.879506 101.069937-187.165865 223.949444-187.165865h159.582811c122.879506 0 222.072289 65.453405 222.07229 188.332911 0 0-109.486257 101.934416-300.097688 101.563925s-305.506856-102.730972-305.506857-102.730971z" fill="#FFFFFF"/></symbol>
+<symbol id="avatar-admin" viewBox="0 0 1041 1024"><path d="M495.612802 975.238095c-264.881062 0-479.625293-214.744231-479.625292-479.625293 0-264.881062 214.744231-479.625293 479.625292-479.625292 264.881062 0 479.625293 214.744231 479.625293 479.625292 0 264.881062-214.744231 479.625293-479.625293 479.625293z m255.768182-443.36562c0-143.535863-114.40662-259.733084-255.800157-259.733084-141.361561 0-255.800156 116.197221-255.800156 259.733084L239.812646 815.362998c69.289867 58.354411 158.596097 95.925059 255.800156 95.925058s186.510289-37.570648 255.800157-95.925058l-0.031975-283.490523zM335.737705 559.562842s183.856362-0.095925 319.71822 0a159.875098 159.875098 0 1 1-319.71822 0z m255.800156-63.95004a31.97502 31.97502 0 1 1 0-63.950039 31.97502 31.97502 0 0 1 0 63.950039z m-191.850117 0a31.97502 31.97502 0 1 1 0-63.950039 31.97502 31.97502 0 0 1 0 63.950039z" fill="#d81e06"/></symbol>
 <symbol id="avatar-member" viewBox="0 0 1024 1024"><path d="M1024 512A512 512 0 1 1 512 0a512 512 0 0 1 512 512z" fill="#fdecf4"/><path d="M694.857143 388.022857v91.428572a192 192 0 0 1-190.537143 191.634285h-10.971429a176.274286 176.274286 0 0 1-58.88-9.874285 189.074286 189.074286 0 0 1-95.451428-69.851429c0-2.194286-2.56-4.022857-3.657143-5.851429a323.291429 323.291429 0 0 1-31.085714-126.902857v-66.194285c0-12.8 0-25.6 1.828571-38.4v-2.56-16.091429c0-14.628571 1.828571-29.257143 2.194286-44.251429s0-29.622857 0-45.348571A226.377143 226.377143 0 0 0 292.571429 178.834286l48.274285 7.68a438.857143 438.857143 0 0 0 113.737143 13.165714 133.12 133.12 0 0 1 20.48 0 159.451429 159.451429 0 0 1 18.651429 0h10.971428a189.805714 189.805714 0 0 1 73.142857 14.994286 190.902857 190.902857 0 0 1 117.028572 155.794285 77.165714 77.165714 0 0 1 0 9.142858 67.657143 67.657143 0 0 1 0 8.411428zM882.102857 855.405714v10.24a512 512 0 0 1-740.205714 0v-10.24a118.857143 118.857143 0 0 1 118.491428-118.491428h503.588572a118.491429 118.491429 0 0 1 118.125714 118.491428z" fill="#fcb6d7"/></symbol>
 <symbol id="logo-ccb" viewBox="0 0 1024 1024"><path d="M885.81977 400.744383L591.037951 106.667564c-61.054962-61.054962-134.685917-57.246965-160.669901-52.990967C198.564193 91.819574 21.798302 293.00045 21.798302 535.5903c0 269.756834 218.652865 488.4097 488.377699 488.4097 263.388838 0 478.009706-210.109871 488.0577-471.12971 0.096-3.071998-0.895999-12.031993-7.359996-16.09599-7.839995-4.799997-23.295986-3.007998-23.295985-3.007998H778.556836s-17.887989 0-23.487986 2.623998c-3.583998 1.631999-8.639995 5.535997-8.639994 5.535997L516.095997 772.163155a9.727994 9.727994 0 0 1-13.567991 0l-231.580858-231.549858a9.599994 9.599994 0 0 1 0-13.566991l231.580858-231.580858a9.535994 9.535994 0 0 1 13.567991 0L728.572867 507.910318s11.199993 9.855994 21.471987 12.607992c9.759994 2.591998 24.063985-7.263996 24.063985-7.263996l111.709931-112.509931z" fill="#005BAB"/><path d="M993.369704 249.801476L835.259801 92.427573C658.65391-77.938322 454.497035 39.372606 454.497035 39.372606s86.718947-46.590971 197.692879 70.110957l261.180839 262.364838 77.086953-76.254953s9.311994-11.615993 11.455993-22.143986c2.047999-9.855994-8.543995-23.647985-8.543995-23.647986z" fill="#005BAB"/></symbol>
 <symbol id="logo-psbc" viewBox="0 0 1024 1024"><path d="M598.203733 36.522667l-34.56 141.738666h-168.260266v89.941334h204.8l42.632533-137.813334h360.96L1024 36.522667H598.203733z m-257.536 141.738666l-66.935466 289.792H168.311467v89.941334h91.204266l-14.199466 49.902933H168.311467v93.883733h60.808533L168.311467 985.429333h227.089066v-93.866666h-150.084266l12.151466-49.937067h137.9328v-95.863467h-115.592533l10.171733-39.936h105.4208v-97.928533H306.176l12.151467-49.92h77.056v-89.924267h-58.88l12.2368-51.968h46.6432v-93.952h-28.416l14.216533-53.930666h14.199467v-89.941334h-54.715734z m338.568534 2.048l-42.564267 141.824H395.400533v93.9008h287.914667l38.536533-145.800533H973.312l20.292267-89.924267h-314.368zM614.4 468.053333l-60.808533 277.7088h-158.208v95.863467h196.676266l66.952534-285.696h255.488l18.244266-87.876267H614.4z m-218.999467 0v89.941334h87.159467l-10.103467 49.902933h-77.056v97.928533h111.547734l50.688-237.7728h-162.235734z m-344.712533 0L0 701.661867h168.311467v-93.883734H79.104l12.151467-49.92h77.056v-89.941333 517.393067-517.376H50.688v0.119466z m640.768 139.844267l-64.904533 283.648H395.383467v93.883733H669.184l64.904533-279.671466h150.016l18.2272-97.928534H691.456v0.068267z" fill="#128B3E"/></symbol>
 <symbol id="logo-spdb" viewBox="0 0 1325 1024"><path d="M816.188235 411.105882l3.011765-3.011764c64.752941-52.705882 141.552941-48.188235 167.152941-43.670589-10.541176-30.117647-57.223529-131.011765-194.258823-131.011764-61.741176 0-118.964706 28.611765-158.117647 76.8-25.6 33.129412-42.164706 72.282353-45.176471 114.447059-10.541176 120.470588-75.294118 177.694118-82.823529 183.717647-46.682353 40.658824-109.929412 57.223529-170.164706 45.17647 12.047059 31.623529 63.247059 135.529412 200.282353 131.011765 54.211765-1.505882 105.411765-24.094118 143.058823-63.247059 45.176471-45.176471 54.211765-114.447059 55.717647-135.529412 10.541176-102.4 60.235294-155.105882 81.317647-174.682353M1159.529412 216.847059c0-15.058824-7.529412-28.611765-18.070588-37.647059l-106.917648-82.823529s-21.082353-18.070588-21.082352 9.035294v338.823529c0 58.729412-25.6 115.952941-70.776471 155.105882-52.705882 45.176471-121.976471 66.258824-189.741177 55.717648 15.058824 31.623529 73.788235 131.011765 204.8 131.011764 120.470588 0 201.788235-106.917647 201.788236-206.305882V216.847059M382.494118 418.635294c52.705882-45.176471 121.976471-66.258824 189.741176-55.717647-15.058824-31.623529-73.788235-131.011765-204.8-131.011765-120.470588 0-201.788235 106.917647-201.788235 206.305883v368.941176c0 15.058824 6.023529 28.611765 18.070588 37.647059l106.917647 82.823529s21.082353 18.070588 21.082353-9.035294V582.776471v-9.035295c0-60.235294 25.6-115.952941 70.776471-155.105882" fill="#074195"/></symbol>
 </svg>
   <div class="topbar">
-    <div class="logo"><span class="dot"><svg class="ic" style="width:17px;height:17px;stroke-width:2.6"><use href="#i-trending-up"/></svg></span>现金理财监控</div>
+    <div class="logo"><span class="dot"><img src="/static/logo.png" alt="logo"></span>现金理财监控<span class="ver-tag">{{ app_version }}</span></div>
     <div style="display:flex;align-items:center;gap:12px;">
       <div class="nav">
         <a href="/" class="{% if request.path=='/' %}active{% endif %}">总览</a>
