@@ -37,35 +37,67 @@
 ├── templates/              # 页面模板：总览、设置、登录
 ├── static/                 # 静态资源
 ├── Dockerfile              # 镜像构建
-├── docker-compose.yml      # 一键部署编排
+├── docker-compose.yml      # 通用部署编排（GHCR 镜像版）
+├── docker-compose.build.yml # 通用部署编排（源码本地构建版）
 └── .github/workflows/      # 自动构建镜像并推送到 GHCR
 ```
 
 ## 快速开始
 
-### 方式一：Docker Compose（推荐）
+项目提供两份通用 Compose 文件，任选其一：
+
+| 文件 | 说明 | 适用 |
+|---|---|---|
+| `docker-compose.yml` | 从 GHCR 拉取镜像（**推荐**） | 1Panel、飞牛 NAS、命令行 |
+| `docker-compose.build.yml` | 用源码在本地构建（无需镜像仓库） | 已上传源码到服务器的场景 |
+
+部署前请把文件里的 `SECRET_KEY` 改为随机强字符串：
 
 ```bash
-git clone https://github.com/<你的用户名>/FPC.git
-cd FPC
-
-# 建议设置会话密钥（否则使用代码中的开发默认值）
-export SECRET_KEY="$(openssl rand -hex 32)"
-
-docker compose up -d --build
+openssl rand -hex 32
 ```
 
-部署完成后访问 `http://<服务器地址>:6868/`。
+部署完成后访问 `http://<服务器地址>:6868/`，用默认管理员账号登录并**立即修改密码**。
 
-### 方式二：GitHub Actions 构建的镜像
+### 方式一：1Panel 部署
 
-推送到 `main` / `master` 分支会自动构建镜像并推送到 GHCR。将 `docker-compose.yml` 中的 `build: .` 注释掉、启用 `image: ghcr.io/<你的用户名>/fpc:latest` 后：
+1. 进入 **容器 → 编排 → 新建编排**
+2. 粘贴 `docker-compose.yml` 的内容（镜像版），或 `docker-compose.build.yml`（源码构建版）
+3. 修改 `SECRET_KEY`，端口按需要调整（默认 `6868:6868`）
+4. 点击**部署**，等待镜像拉取与容器启动
+5. 浏览器访问 `http://<服务器IP>:6868/`
+
+> 若使用源码构建版，需先把整个项目目录上传到服务器，并在该目录新建编排。
+
+### 方式二：飞牛 NAS（FnOS）部署
+
+1. 打开 **Docker → 项目 → 新增项目**（Compose 方式）
+2. 粘贴 Compose 文件内容，设置项目名称与存放路径
+3. 修改 `SECRET_KEY`，确认端口 `6868`
+4. 点击**部署 / 启动**
+5. 浏览器访问 `http://<飞牛IP>:6868/`
+
+> 飞牛上如需绑定挂载到特定目录，把 `./data` 改成绝对路径（如 `/volume1/docker/longwallet/data`）。
+
+### 方式三：命令行部署
 
 ```bash
+# 镜像版
 docker compose up -d
+
+# 或源码构建版
+docker compose -f docker-compose.build.yml up -d --build
 ```
 
-### 方式三：本地开发运行
+### 镜像说明
+
+推送到 `main` / `master` 分支会自动构建镜像并推送到 GHCR（`ghcr.io/<你的用户名>/fpc:latest`）。若镜像为私有，需先在服务器登录：
+
+```bash
+echo <TOKEN> | docker login ghcr.io -u <用户名> --password-stdin
+```
+
+### 方式四：本地开发运行
 
 ```bash
 pip install -r requirements.txt

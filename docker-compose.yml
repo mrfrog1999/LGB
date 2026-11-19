@@ -1,26 +1,50 @@
-# 龙钱包现金理财监控 - Docker Compose
-# 端口：6868    数据持久化：命名卷 longwallet-data 挂载到 /app/data
+# ============================================================
+# 龙钱包 · 现金理财监控 —— 通用 Docker Compose（镜像版，推荐）
+# 适用：1Panel / 飞牛 NAS(FnOS) / 任意支持 Compose v2 的环境
+# ------------------------------------------------------------
+# 部署前准备：
+#   1. 镜像来自 GHCR，需先将源码推送到 GitHub 并触发 Actions 构建镜像。
+#      若仓库名/用户名不同，把下面 image 地址改成对应路径。
+#   2. 把 SECRET_KEY 改成随机强字符串：openssl rand -hex 32
+#   3. 数据目录 ./data 会自动创建，数据库持久化其中；备份只需拷贝该目录。
+#
+# 1Panel：容器 → 编排 → 新建编排 → 粘贴本文件内容 → 部署
+# 飞牛 NAS：Docker → 项目 → 新增项目 → 粘贴本文件内容 → 部署
+# ============================================================
+
 services:
   longwallet:
-    build: .
-    image: longwallet-monitor:latest
+    # GitHub Actions 构建并推送到 GHCR 的镜像
+    image: ghcr.io/mrfrog1999/fpc:latest
+    # 若镜像为私有仓库，需先在服务器执行：
+    #   echo <TOKEN> | docker login ghcr.io -u <用户名> --password-stdin
     container_name: longwallet
     restart: unless-stopped
     ports:
+      # 宿主端口:容器端口。6868 被占用时改前面的数字即可（如 "7688:6868"）
       - "6868:6868"
     environment:
-      # 容器内监听端口（与 EXPOSE/启动保持一致）
+      # Web 监听端口，需与容器端口保持一致
       PORT: "6868"
-      # SQLite 数据库所在目录，务必指向被卷挂载的 /app/data
+      # 数据库目录，必须指向下方挂载的 /app/data
       DATA_DIR: /app/data
-      # 建行站点旧式 TLS 重协商兼容（镜像内已放置该文件）
+      # 建行站点旧式 TLS 重协商兼容配置（镜像内已包含）
       OPENSSL_CONF: /app/openssl_legacy.cnf
+      # 时区，影响定时任务触发时间
       TZ: Asia/Shanghai
-      # 会话签名密钥：生产环境请在下方或 .env 中改为随机强字符串
-      SECRET_KEY: "${SECRET_KEY:-longwallet-monitor-secret-key}"
+      # 会话签名密钥 —— 务必修改为随机强字符串！
+      SECRET_KEY: "CHANGE_ME_openssl_rand_hex_32"
+      # 每日数据推送时间（可选）
+      PUSH_HOUR: "9"
+      PUSH_MINUTE: "0"
+      # 每日补充抓取时间（可选，仅抓数据不发邮件）
+      SECOND_FETCH_HOUR: "14"
+      SECOND_FETCH_MINUTE: "0"
+      # 年化预警阈值，低于该值(%)发邮件提醒（可选）
+      ALERT_ANNUAL: "1.0"
+      # 访问码兜底值：仅部署在需要 sharecode 的网关后时才需设置，普通部署留空
+      SHARECODE: ""
     volumes:
-      # 数据持久化：数据库、备份等全部落在命名卷，容器重建不丢失
-      - longwallet-data:/app/data
-
-volumes:
-  longwallet-data:
+      # 绑定挂载到宿主机 ./data，方便在面板中查看与备份
+      # 用绝对路径时，把 ./data 改为如 /volume1/docker/longwallet/data
+      - ./data:/app/data

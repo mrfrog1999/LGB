@@ -1,0 +1,40 @@
+# ============================================================
+# 龙钱包 · 现金理财监控 —— 通用 Docker Compose（源码本地构建版）
+# 适用：1Panel / 飞牛 NAS(FnOS) / 任意支持 Compose v2 的环境
+# ------------------------------------------------------------
+# 使用场景：没有 GHCR 镜像、或想在服务器上直接用源码构建时。
+#   1. 把整个项目源码目录上传到服务器（需包含 Dockerfile 与全部源码）
+#   2. 在本文件所在目录执行：docker compose -f docker-compose.build.yml up -d --build
+#   3. 把 SECRET_KEY 改成随机强字符串：openssl rand -hex 32
+#
+# 1Panel：容器 → 编排 → 新建编排 → 粘贴本文件内容 → 部署
+# 飞牛 NAS：Docker → 项目 → 新增项目 → 粘贴本文件内容 → 部署
+# ------------------------------------------------------------
+# 说明：镜像版请改用 docker-compose.yml（从 GHCR 拉取，无需上传源码）。
+# ============================================================
+
+services:
+  longwallet:
+    build: .
+    image: longwallet-monitor:latest
+    container_name: longwallet
+    restart: unless-stopped
+    ports:
+      # 宿主端口:容器端口。6868 被占用时改前面的数字即可（如 "7688:6868"）
+      - "6868:6868"
+    environment:
+      PORT: "6868"
+      DATA_DIR: /app/data
+      OPENSSL_CONF: /app/openssl_legacy.cnf
+      TZ: Asia/Shanghai
+      # 务必修改为随机强字符串！
+      SECRET_KEY: "CHANGE_ME_openssl_rand_hex_32"
+      PUSH_HOUR: "9"
+      PUSH_MINUTE: "0"
+      SECOND_FETCH_HOUR: "14"
+      SECOND_FETCH_MINUTE: "0"
+      ALERT_ANNUAL: "1.0"
+      SHARECODE: ""
+    volumes:
+      # 绑定挂载到宿主机 ./data，方便在面板中查看与备份
+      - ./data:/app/data
