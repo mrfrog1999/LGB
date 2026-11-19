@@ -1,6 +1,7 @@
 """数据层：SQLite 存储产品、持仓、每日净值、收益快照、配置、用户。"""
 import sqlite3
 import threading
+import secrets
 from contextlib import contextmanager
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DB_PATH
@@ -9,7 +10,7 @@ import secure
 _write_lock = threading.RLock()
 
 # 需要加密存储的敏感设置项（值以密文入库，读取时透明解密）
-_ENCRYPTED_SETTINGS = {"smtp_pass"}
+_ENCRYPTED_SETTINGS = {"smtp_pass", "widget_token"}
 
 
 def _encode_setting(key, value):
@@ -168,6 +169,8 @@ def init_db():
 
         # 默认配置
         defaults = {
+            # 桌面小组件免登录接口的访问令牌（随机生成，用户可在设置页重新生成）
+            "widget_token": secrets.token_urlsafe(18),
             "smtp_host": "smtp.qq.com",
             "smtp_port": "465",
             "smtp_user": "",
@@ -230,6 +233,13 @@ def set_settings(d: dict):
     with transaction() as c:
         for k, v in d.items():
             c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (str(k), _encode_setting(k, v)))
+
+
+def regenerate_widget_token():
+    """重新生成桌面小组件访问令牌，返回新的明文 token。"""
+    token = secrets.token_urlsafe(18)
+    set_setting("widget_token", token)
+    return token
 
 
 # ---------- products ----------
@@ -463,7 +473,7 @@ BACKUP_VERSION = 2
 # 敏感设置项：发邮箱的备份必须剔除，避免邮箱授权码/收件人等隐私外泄
 SENSITIVE_SETTING_KEYS = {
     "smtp_host", "smtp_port", "smtp_user", "smtp_pass",
-    "mail_from", "mail_to", "sharecode", "secret_key",
+    "mail_from", "mail_to", "sharecode", "secret_key", "widget_token",
 }
 # 导入恢复时永不覆盖的表（脱敏备份不含这些；即使含也不动现有账号）
 PROTECTED_TABLES = {"users"}

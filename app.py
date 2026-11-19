@@ -1,5 +1,6 @@
 """龙钱包收益监控 - Flask Web 服务 + 后台定时任务。"""
 import logging
+import hmac
 from datetime import datetime
 
 from functools import wraps
@@ -21,7 +22,8 @@ app.secret_key = config.SECRET_KEY
 
 # ---------------- 登录认证与权限 ----------------
 # 未登录可访问的路径（登录页、登录接口、图标等）
-PUBLIC_PATHS = {"/login", "/api/auth/login", "/favicon.ico"}
+# /api/widget/banks 免登录，但接口内部用 widget_token 独立鉴权
+PUBLIC_PATHS = {"/login", "/api/auth/login", "/favicon.ico", "/api/widget/banks"}
 
 
 def current_user():
@@ -708,6 +710,83 @@ def api_diag():
 def api_report_preview():
     data = service.dashboard_data()
     return mailer.build_report_page(data)
+
+
+# ---------------- 桌面小组件免登录接口（token 鉴权） ----------------
+@app.route("/api/widget/banks")
+def api_widget_banks():
+    """供 iOS Scriptable 桌面组件读取：三家银行年化 + 汇总。
+
+    免网页登录，但必须携带正确的 widget_token（URL 参数 token 或请求头 X-Widget-Token）。
+    token 在数据库中加密存储，get_settings 读取时已透明解密为明文。
+    """
+    supplied = (request.args.get("token") or request.headers.get("X-Widget-Token") or "").strip()
+    expected = db.get_settings().get("widget_token", "")
+    if not expected or not supplied or not hmac.compare_digest(supplied, expected):
+        return jsonify({"ok": False, "error": "invalid token"}), 401
+
+    import base64, os
+    data = service.dashboard_data()
+    pf = data["portfolio"]
+    bs = pf.get("bank_summary", {})
+    names = {"ccb": "建设银行", "psbc": "邮储银行", "spdb": "浦发银行"}
+
+    # 当日收益：每笔按 市值/10000 × 每万份收益 汇总到银行（与七日年化同口径的最新净值）
+    daily_by_bank = {}
+    for h in data.get("holdings", []):
+        v = h.get("current_value", 0) or 0
+        p10k = h.get("latest_per10k")
+        if p10k is not None and v:
+            daily_by_bank[h.get("bank")] = daily_by_bank.get(h.get("bank"), 0) + v / 10000.0 * float(p10k)
+
+    logo_dir = os.path.join(app.root_path, "static")
+
+    def logo_b64(code):
+        p = os.path.join(logo_dir, f"bank_{code}.png")
+        try:
+            with open(p, "rb") as f:
+                return base64.b64encode(f.read()).decode("ascii")
+        except OSError:
+            return ""
+
+    banks = []
+    for code in ("ccb", "psbc", "spdb"):
+        b = bs.get(code)
+        banks.append({
+            "code": code,
+            "name": names[code],
+            "annual": (round(b["avg_annual"], 2) if b.get("avg_annual") is not None
+                       else (round(b["annual"], 2) if b.get("annual") is not None else None)),
+            "nav_date": b.get("avg_date"),
+            "daily_profit": round(daily_by_bank.get(code, 0), 2),
+            "value": b.get("value", 0),
+            "profit": b.get("profit", 0),
+            "count": b.get("count", 0),
+            "logo": logo_b64(code),
+        })
+    resp = jsonify({
+        "ok": True,
+        "updated_at": db.get_last_fetch_time(),
+        "banks": banks,
+        "total": {
+            "value": pf.get("total_value", 0),
+            "profit": pf.get("total_profit", 0),
+            "principal": pf.get("total_principal", 0),
+            "daily_profit": round(sum(daily_by_bank.values()), 2),
+        },
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/widget/token/regenerate", methods=["POST"])
+def api_widget_token_regenerate():
+    """管理员重新生成桌面组件访问令牌（设置页调用）。旧 token 立即失效。"""
+    u = current_user()
+    if u is None or u["role"] != "admin":
+        return jsonify({"ok": False, "error": "只有管理员可以操作"}), 403
+    token = db.regenerate_widget_token()
+    return jsonify({"ok": True, "token": token})
 
 
 @app.route("/api/data/export")

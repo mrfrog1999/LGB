@@ -116,6 +116,29 @@
       </button>
       <div id="diagLast" class="muted" style="font-size:11px;margin-top:10px;"></div>
     </div>
+  {% if is_admin %}
+  <div class="card">
+    <div class="sec-head"><span class="sec-ico amber"><svg class="ic" style="width:18px;height:18px"><use href="#i-sparkles"/></svg></span><h2>桌面小组件访问</h2></div>
+    <div class="sec-desc" style="margin-bottom:14px;">
+      在 iPhone 上用 <b>Scriptable</b> 添加桌面小组件、免登录读取银行年化数据，需要使用下面的访问令牌。令牌等同于数据读取权限，<b>请勿外泄</b>；重新生成后旧令牌立即失效。
+    </div>
+    <label style="font-size:12.5px;font-weight:600;color:#64748b;">访问令牌（Token）</label>
+    <div style="display:flex;gap:8px;margin:6px 0 12px;">
+      <input type="text" id="widgetToken" value="{{ settings.widget_token }}" readonly
+             style="flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;">
+      <button class="btn btn-ghost" onclick="copyWidgetToken()" title="复制令牌"><svg class="ic"><use href="#i-clipboard"/></svg>复制</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="regenWidgetToken()" style="border-color:var(--brand);color:var(--brand);">
+        <svg class="ic"><use href="#i-refresh"/></svg>重新生成令牌
+      </button>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin-top:12px;line-height:1.8;">
+      接口地址：<code style="font-size:11px;">/api/widget/banks?sharecode=...&amp;token=你的令牌</code><br>
+      脚本里填入 <b>服务器地址 + sharecode + 上面的令牌</b> 即可。令牌已加密存储，且不会包含在发送到邮箱的备份中。
+    </div>
+  </div>
+  {% endif %}
   <div class="card">
     <div class="sec-head"><span class="sec-ico indigo"><svg class="ic" style="width:18px;height:18px"><use href="#i-mail"/></svg></span><h2>邮件推送配置</h2></div>
     <div class="sec-desc">使用 QQ / 163 邮箱 SMTP，需在邮箱设置中开启 SMTP 并获取「授权码」（不是登录密码）</div>
@@ -742,6 +765,27 @@ async function testMail(){
   toast('正在测试发送...');
   const res=await api('/api/mail/test',{method:'POST',body:JSON.stringify({to})});
   toast(res.ok?'测试邮件已发送':(res.error||'发送失败'),res.ok);
+}
+
+async function copyWidgetToken(){
+  const el=document.getElementById('widgetToken');
+  const val=el.value.trim();
+  if(!val){toast('令牌为空',false);return;}
+  try{
+    await navigator.clipboard.writeText(val);
+    toast('令牌已复制');
+  }catch(e){
+    el.select();document.execCommand('copy');toast('令牌已复制');
+  }
+}
+
+async function regenWidgetToken(){
+  confirmModal('重新生成后，当前桌面小组件里的旧令牌会立即失效，需要在 Scriptable 脚本里更新为新令牌。确定继续？',async()=>{
+    const res=await api('/api/widget/token/regenerate',{method:'POST'});
+    if(!res.ok){toast(res.error||'生成失败',false);return;}
+    document.getElementById('widgetToken').value=res.token;
+    toast('新令牌已生成，请更新 Scriptable 脚本');
+  },{title:'重新生成访问令牌',okText:'重新生成'});
 }
 </script>
 {% endblock %}
