@@ -28,13 +28,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # GHCR 强制要求仓库名全小写，而 github.repository 会保留仓库名原有大小写
+      # （如 mrfrog1999/LGB），直接用于 tag 会报 "repository name must be lowercase"。
+      # 这里统一转为小写，与 docker-compose.yml 中的 ghcr.io/<owner>/lgb 保持一致。
+      - name: 计算小写镜像名
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: 构建并推送镜像
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
