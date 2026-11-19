@@ -66,9 +66,9 @@
   .rate-card-sub{font-size:11px;color:var(--muted);margin-top:2px}
   .rate-card-main{position:relative;z-index:1;margin-bottom:15px}
   .rate-card-label{font-size:11.5px;color:var(--muted);font-weight:600}
-  .rate-card-num{font-size:38px;font-weight:800;letter-spacing:-1.5px;line-height:1.15;margin-top:3px;
+  .rate-card-num{font-size:46px;font-weight:800;letter-spacing:-2px;line-height:1.12;margin-top:3px;
     color:var(--bank);font-variant-numeric:tabular-nums}
-  .rate-card-num .pct{font-size:18px;font-weight:700;margin-left:2px;letter-spacing:0}
+  .rate-card-num .pct{font-size:22px;font-weight:700;margin-left:2px;letter-spacing:0}
   .rate-card-tag{display:inline-block;font-size:10.5px;color:var(--muted);background:#f5f7fa;
     border:1px solid var(--border);border-radius:6px;padding:3px 8px;margin-top:7px}
   .rate-card-foot{position:relative;z-index:1;padding-top:13px;border-top:1px dashed var(--border)}
@@ -129,8 +129,8 @@
     .rate-card-sub{display:none}
     .rate-card-label{display:none}
     .rate-card-main{margin-bottom:8px}
-    .rate-card-num{font-size:20px;letter-spacing:-0.8px;margin-top:0}
-    .rate-card-num .pct{font-size:10px;margin-left:1px}
+    .rate-card-num{font-size:25px;letter-spacing:-1px;margin-top:0}
+    .rate-card-num .pct{font-size:12px;margin-left:1px}
     .rate-card-tag{font-size:9px;padding:1px 4px;margin-top:4px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
     .rate-card-tag .tag-prefix{display:none}
     .rate-card-foot{padding-top:8px}
@@ -208,7 +208,7 @@
       <div class="rate-card-main">
         <div class="rate-card-label">官方七日年化收益率</div>
         <div class="rate-card-num">
-          {% if bs.get(key) and bs[key].avg_annual is not none %}{{ '%.4f'|format(bs[key].avg_annual) }}<span class="pct">%</span>{% else %}—{% endif %}
+          {% if bs.get(key) and bs[key].avg_annual is not none %}{{ '%.2f'|format(bs[key].avg_annual) }}<span class="pct">%</span>{% else %}—{% endif %}
         </div>
         <div class="rate-card-tag">
           {% if bs.get(key) and bs[key].avg_date %}
@@ -225,7 +225,7 @@
           <div class="metric"><span>当前市值</span><b class="value">¥{{ '%.2f'|format(bs[key].value) }}</b></div>
           <div class="metric"><span>累计收益</span><b class="{% if bs[key].profit>=0 %}up{% else %}down{% endif %}">¥{{ '%.2f'|format(bs[key].profit) }}</b></div>
           <div class="metric"><span>持有产品</span><b>{{ bs[key].count }} 只</b></div>
-          <div class="metric"><span>加权年化</span><b>{{ '%.4f'|format(bs[key].annual) if bs[key].annual is not none else '-' }}%</b></div>
+          <div class="metric"><span>加权年化</span><b>{{ '%.2f'|format(bs[key].annual) if bs[key].annual is not none else '-' }}%</b></div>
         </div>
         {% if bs[key].pending and bs[key].pending>0 %}
         <div class="rate-card-pending">待入账 ¥{{ '%.2f'|format(bs[key].pending) }}</div>
