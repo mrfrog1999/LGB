@@ -199,7 +199,7 @@
     <div style="display:flex;align-items:center;gap:12px;">
       <div class="nav">
         <a href="/" class="{% if request.path=='/' %}active{% endif %}">总览</a>
-        <a href="/settings" class="{% if request.path=='/settings' %}active{% endif %}">设置</a>
+        {% if is_admin %}<a href="/settings" class="{% if request.path=='/settings' %}active{% endif %}">设置</a>{% endif %}
       </div>
       {% if current_user %}
       <div class="user-chip">

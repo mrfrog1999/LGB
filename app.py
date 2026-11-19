@@ -61,6 +61,12 @@ def auth_guard():
     # 导出备份含邮箱授权码/密码哈希等敏感信息，仅管理员可导出
     if path == "/api/data/export" and user["role"] != "admin":
         return jsonify({"ok": False, "error": "只有管理员可以导出备份"}), 403
+    # 预览报告含完整持仓与收益信息，仅管理员可查看
+    if path == "/api/report/preview" and user["role"] != "admin":
+        return jsonify({"ok": False, "error": "只有管理员可以查看预览报告"}), 403
+    # 设置页仅管理员可访问，普通用户直接回首页
+    if path == "/settings" and user["role"] != "admin":
+        return redirect(url_for("index"))
     return None
 
 
