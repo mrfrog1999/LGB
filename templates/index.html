@@ -336,6 +336,18 @@
 </div>
 {% endif %}
 
+<!-- 持仓列表：银行筛选标签 -->
+<div class="bank-tabs" id="holdBankTabs" style="margin-bottom:14px;">
+  <button class="bank-tab active" data-bank="all" onclick="filterHoldings('all')">全部 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|length }}</span></button>
+  <button class="bank-tab" data-bank="ccb" onclick="filterHoldings('ccb')">建行 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','ccb')|list|length }}</span></button>
+  <button class="bank-tab" data-bank="psbc" onclick="filterHoldings('psbc')">邮储 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','psbc')|list|length }}</span></button>
+  <button class="bank-tab" data-bank="spdb" onclick="filterHoldings('spdb')">浦发 <span style="font-size:11px;opacity:.65;margin-left:2px;">{{ data.holdings|selectattr('bank','equalto','spdb')|list|length }}</span></button>
+</div>
+<div id="holdFilterEmpty" class="card" style="display:none;text-align:center;padding:36px 20px;color:var(--muted);margin-bottom:16px;">
+  <div class="ico" style="justify-content:center;margin-bottom:8px;"><svg class="ic" style="width:34px;height:34px;stroke-width:1.5"><use href="#i-folder"/></svg></div>
+  <b>该银行暂无持仓</b>
+</div>
+
 <!-- 持仓列表（桌面表格） -->
 <div class="card holding-table-wrap" style="padding:0;overflow:hidden;">
   <div class="table-scroll">
@@ -354,7 +366,7 @@
     </thead>
     <tbody>
       {% for h in data.holdings %}
-      <tr style="border-top:1px solid var(--border);" id="row-{{ h.id }}">
+      <tr style="border-top:1px solid var(--border);" id="row-{{ h.id }}" data-bank="{{ h.bank }}">
         <td style="padding:14px 20px;">
           <b>{{ h.product_name }}</b>
           <span class="badge badge-{{ h.bank }}">
@@ -408,7 +420,7 @@
 <!-- 持仓列表（移动端卡片） -->
 <div class="holding-cards">
   {% for h in data.holdings %}
-  <div class="hcard" id="card-{{ h.id }}">
+  <div class="hcard" id="card-{{ h.id }}" data-bank="{{ h.bank }}">
     <div class="hcard-name">
       {{ h.product_name }}
       <span class="badge badge-{{ h.bank }}">
@@ -787,6 +799,28 @@ document.getElementById('c-date').value=todayStr();
 document.getElementById('c-date').addEventListener('change',updateCapHint);
 
 const BANK_LABEL={ccb:'建行',psbc:'邮储',spdb:'浦发'};
+
+// 按银行筛选持仓列表（桌面表格行 + 移动端卡片同步显隐）
+let holdingBank='all';
+function filterHoldings(bank){
+  holdingBank=bank;
+  document.querySelectorAll('#holdBankTabs .bank-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.bank===bank);
+  });
+  let visible=0;
+  document.querySelectorAll('.holding-table-wrap tbody tr[data-bank]').forEach(tr=>{
+    const show=(bank==='all'||tr.dataset.bank===bank);
+    tr.style.display=show?'':'none';
+    if(show)visible++;
+  });
+  document.querySelectorAll('.holding-cards .hcard[data-bank]').forEach(card=>{
+    const show=(bank==='all'||card.dataset.bank===bank);
+    card.style.display=show?'':'none';
+  });
+  const empty=document.getElementById('holdFilterEmpty');
+  if(empty)empty.style.display=visible?'none':'block';
+}
+
 // 持仓清单（用于支出弹窗选择银行 / 单只产品）
 const HOLDINGS=[{% for h in data.holdings %}{id:{{ h.id }},bank:"{{ h.bank }}",name:{{ h.product_name|tojson }},settled:{{ 'true' if h.initial_settled else 'false' }}},{% endfor %}];
 let expenseBank='ccb';
