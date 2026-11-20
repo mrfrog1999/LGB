@@ -304,16 +304,24 @@ def _smtp_send(subject, html, override_to=None, attachments=None):
 
 
 def report_subject(data):
-    """日报标题：三家 App 官方七日年化一行展示。"""
+    """日报标题：三家七日年化一行展示（官方值优先，为空则回退到自动计算值）。"""
     p = data.get("portfolio", {})
+    bank_summary = p.get("bank_summary") or {}
 
-    def val(key):
-        v = str(p.get(key) or "").strip()
-        return f"{v}%" if v else "未填"
+    def val(official_key, bank):
+        # 与正文 annual_card 保持一致：官方 App 年化优先，为空则用自动计算值，都没有才"未填"
+        official = str(p.get(official_key) or "").strip()
+        if official:
+            return f"{official}%"
+        calc = (bank_summary.get(bank) or {}).get("annual")
+        if calc is not None:
+            return f"{calc:.4f}%"
+        return "未填"
 
     return ("建行·{ccb} -|- 邮储·{psbc} -|- 浦发·{spdb}"
-            .format(ccb=val("app_overall_annual"), psbc=val("psbc_app_overall_annual"),
-                    spdb=val("spdb_app_overall_annual")))
+            .format(ccb=val("app_overall_annual", "ccb"),
+                    psbc=val("psbc_app_overall_annual", "psbc"),
+                    spdb=val("spdb_app_overall_annual", "spdb")))
 
 
 def send_report(data, update_details=None, override_to=None):
