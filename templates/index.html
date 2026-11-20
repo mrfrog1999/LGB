@@ -71,13 +71,16 @@
     justify-content:center;font-size:17px;font-weight:800;color:#fff;flex:0 0 auto;background:var(--bank)}
   .rate-card-avatar.bank-logo{background:#fff;padding:5px;box-shadow:inset 0 0 0 1px #e5eaf2}
   .rate-card-avatar.bank-logo .logo-svg{width:100%;height:100%;display:block}
-  .rate-card-avatar.bank-logo .logo-svg.spdb{width:100%;height:auto;align-self:center}
   /* 产品列表银行标签：彩色银行 logo 小图标 */
   .bank-logo-tag{width:23px;height:23px;border-radius:6px;display:inline-flex;align-items:center;
     justify-content:center;background:#fff;padding:3px;box-shadow:inset 0 0 0 1px var(--border);
-    vertical-align:middle;flex:0 0 auto}
+    vertical-align:middle;flex:0 0 auto;overflow:hidden}
   .bank-logo-tag svg{width:100%;height:100%;display:block}
-  .bank-logo-tag.spdb svg{height:auto}
+  /* 三家银行 logo 视觉大小统一：按各图形在方形画布中的实际占比施加补偿系数。
+     建行为基准；邮储、浦发在各图形等高的基础上再略缩小一点，视觉上比建行稍小一圈 */
+  svg:has(use[href="#logo-ccb"]){transform:scale(.85)}
+  svg:has(use[href="#logo-psbc"]){transform:scale(.86)}
+  svg:has(use[href="#logo-spdb"]){transform:scale(.97)}
   /* 银行切换标签内的 logo */
   .tab-logo{width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;
     vertical-align:-3px;margin-right:5px;flex:0 0 auto}
