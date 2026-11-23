@@ -8,18 +8,18 @@
 
   /* 顶部汇总大卡（合并四卡） */
   .fx-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 24px 20px;
-    background:linear-gradient(135deg,#0b1a3a 0%,#132a5e 45%,#1b3f8f 100%);
-    color:#fff;box-shadow:0 10px 30px rgba(16,38,90,.28);margin-bottom:18px}
+    background:linear-gradient(135deg,#fb7137 0%,#ef4444 55%,#dc2626 100%);
+    color:#fff;box-shadow:0 10px 30px rgba(220,38,38,.28);margin-bottom:18px}
   .fx-hero::before{content:'';position:absolute;left:-10%;right:-10%;bottom:-60px;height:150px;
-    background:radial-gradient(ellipse at 30% 100%,rgba(96,165,250,.30),transparent 62%),
-               radial-gradient(ellipse at 75% 100%,rgba(59,130,246,.28),transparent 62%);
+    background:radial-gradient(ellipse at 30% 100%,rgba(255,208,150,.32),transparent 62%),
+               radial-gradient(ellipse at 75% 100%,rgba(255,160,120,.28),transparent 62%);
     pointer-events:none}
   .fx-hero>*{position:relative;z-index:1}
   .fx-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .fx-hero-title{font-size:14px;font-weight:600;color:rgba(255,255,255,.72);letter-spacing:.3px}
   .fx-hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);
     border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:700;color:#eaf1ff;white-space:nowrap}
-  .fx-hero-dot{width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.20)}
+  .fx-hero-dot{width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
   .fx-hero-amount{font-size:clamp(30px,6vw,44px);font-weight:800;letter-spacing:-1px;line-height:1.1;margin:14px 0 18px;font-variant-numeric:tabular-nums}
   .fx-hero-line{height:1px;background:rgba(255,255,255,.16);margin-bottom:16px}
   .fx-hero-bottom{display:grid;grid-template-columns:1fr 1fr}
@@ -119,10 +119,11 @@
   .fx-bank .fb-txt{background:#5b6b7f;color:#fff;border-radius:6px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
   .fx-owner{display:inline-block;background:#f1f5f9;color:#475569;border-radius:6px;padding:2px 8px;font-size:11.5px}
   .fx-tag{display:inline-block;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:700}
-  .fx-tag.urgent{background:#fef2f2;color:#dc2626}
-  .fx-tag.soon{background:#fff7ed;color:#ea580c}
-  .fx-tag.normal{background:#f0fdf4;color:#16a34a}
-  .fx-tag.done{background:#f1f5f9;color:#94a3b8}
+  /* 到期相关标签：红色系；未到期标签：蓝色系 */
+  .fx-tag.urgent{background:#dc2626;color:#fff}
+  .fx-tag.soon{background:#fef2f2;color:#dc2626}
+  .fx-tag.done{background:#fee2e2;color:#b91c1c}
+  .fx-tag.normal{background:#eff6ff;color:#2563eb}
   .fx-actions button{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:13px}
   .fx-actions button:hover{background:#f1f5f9;color:var(--brand)}
   .fx-empty{text-align:center;color:var(--muted);padding:48px 20px;font-size:14px}
@@ -588,6 +589,7 @@
 const IS_ADMIN_FX = {{ 'true' if is_admin else 'false' }};
 const FX_USERS = {{ users|tojson }};
 let FX_DEPOSITS = [];
+let FX_CUR_VIEW = 'cal';   // 当前视图：cal 固定总计 / stat 跟随筛选
 // 统计时间筛选状态：mode=all|year|month|day，field=save_date|expire_date
 const FX_STAT_FILTER = {mode:'all', field:'save_date', year:'', month:'', day:'', bank:'', owner:''};
 
@@ -797,11 +799,12 @@ function fxRefreshStat(){
   if(f.owner){const o=FX_USERS.find(u=>String(u.id)===f.owner);parts.push('成员：'+esc(o?(o.display_name||o.username):f.owner));}
   const sum=document.getElementById('fxSfSummary');
   sum.innerHTML=`统计范围：<b>${parts.join(' · ')}</b> · 命中 <b>${list.length}</b> 笔 · 上方汇总与下方明细已同步`;
-  renderFxStats(list);
+  renderFxStats();
   renderFxStatDetail(list);
 }
-function renderFxStats(list){
-  list=list||fxFilteredDeposits();
+function renderFxStats(){
+  // 日历页：全部存单固定总计；统计页：跟随统计筛选条件
+  const list=(FX_CUR_VIEW==='stat')?fxFilteredDeposits():FX_DEPOSITS;
   const n=list.length;
   const principal=list.reduce((a,d)=>a+(Number(d.principal)||0),0);
   const interest=list.reduce((a,d)=>a+(Number(d.interest)||0),0);
@@ -1456,12 +1459,15 @@ async function doFxImport(){
 
 // ---------- 视图切换 ----------
 function switchFxView(v){
+  FX_CUR_VIEW=v;
   document.querySelectorAll('.fx-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.fx-view').forEach(el=>el.classList.remove('active'));
   document.getElementById('fxView-'+v).classList.add('active');
   // 汇总大卡仅在日历/统计页显示，台账与设置页隐藏
   const hero=document.querySelector('.fx-hero');
   if(hero)hero.classList.toggle('fx-hero-hidden',v==='list'||v==='setting');
+  // banner 按视图重算：统计页跟随筛选，日历页固定总计
+  renderFxStats();
   if(v==='cal')renderFxCal();
 }
 
