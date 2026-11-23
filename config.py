@@ -2,7 +2,7 @@
 import os
 
 # 应用版本号：唯一来源，由 bump_version.py 在每次推送 GitHub 前自动递增
-APP_VERSION = "v1.0.10"
+APP_VERSION = "v1.0.11"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
@@ -14,6 +14,9 @@ DB_PATH = os.path.join(DATA_DIR, "longwallet.db")
 PORT = int(os.environ.get("PORT", "8866"))
 HOST = "0.0.0.0"
 SECRET_KEY = os.environ.get("SECRET_KEY", "longwallet-monitor-secret-key")
+
+# 持久登录有效期（天）：登录态 cookie 的 Max-Age/Expires，关闭浏览器后仍保持登录
+SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "30"))
 
 # 建行数据源
 CCB_LIST_PAGE = "https://ccb.com/chn/home/finance/index/cpgg/cpcxqgg/index.shtml"

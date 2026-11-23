@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}本金支出 / 赎回 · 现金理财监控{% endblock %}
+{% block head %}
+<style>
+  /* 本页自用的两个类（base 未定义） */
+  .btn-expense{background:#fff5f4;color:#e0392b;border:1.5px solid #fad9d5;padding:9px 15px;border-radius:10px;
+    font-size:13.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}
+  .btn-expense:hover{background:#ffe9e6;border-color:#f3b8b0;transform:translateY(-1px)}
+  .tab-logo{width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;
+    vertical-align:-3px;margin-right:5px;flex:0 0 auto}
+  .tab-logo svg{width:100%;height:100%;display:block}
+  svg:has(use[href="#logo-ccb"]){transform:scale(.85)}
+  svg:has(use[href="#logo-psbc"]){transform:scale(.86)}
+  svg:has(use[href="#logo-spdb"]){transform:scale(.97)}
+  .page-title{display:flex;align-items:center;gap:12px}
+  .page-title h1{font-size:25px;font-weight:750;letter-spacing:-.5px}
+  .page-badge{font-size:11px;font-weight:700;color:var(--brand);background:#fef2f2;
+    padding:4px 11px;border-radius:20px}
+  .wd-summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+  .wd-summary .sm{flex:1;min-width:150px;background:#fff;border:1px solid var(--border);
+    border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .wd-summary .sm .l{font-size:12px;color:var(--muted);font-weight:600}
+  .wd-summary .sm .v{font-size:24px;font-weight:750;letter-spacing:-.6px;margin-top:6px;
+    font-variant-numeric:tabular-nums;color:var(--up)}
+  .wd-summary .sm .v.cnt{color:var(--text)}
+  /* 每条记录一个独立背景框（桌面/移动统一，无外层大框、无横向滚动） */
+  .wdcard{background:#fff;border:1px solid var(--border);border-radius:14px;
+    box-shadow:var(--shadow);padding:14px 16px;margin-bottom:11px;transition:box-shadow .18s,border-color .18s}
+  .wdcard:hover{box-shadow:var(--shadow-hover);border-color:#ffd9d4}
+  .wdcard-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .wdcard-date{font-size:14px;font-weight:700;color:var(--text)}
+  .wdcard-scope{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.7}
+  .wdcard-amt{font-size:17px;font-weight:750;color:var(--up);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .wdcard-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    margin-top:11px;padding-top:10px;border-top:1px dashed var(--border)}
+  .wdcard-note{font-size:12px;color:var(--muted);flex:1;min-width:0;word-break:break-word}
+  .empty-state{padding:52px 20px;text-align:center;color:var(--muted);background:#fff;
+    border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow)}
+  .empty-state .ico{font-size:40px;opacity:.6;margin-bottom:10px}
+  .empty-state b{display:block;color:var(--text);font-size:15px;margin-bottom:5px}
+  @media(max-width:900px){
+    .wd-summary .sm{padding:14px 15px}
+    .wd-summary .sm .v{font-size:21px}
+  }
+  @media(max-width:560px){
+    .wdcard-amt{font-size:16px}
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+  <div>
+    <div class="page-title">
+      <h1>本金支出 / 赎回</h1>
+      <span class="page-badge"><svg class="ic" style="width:13px;height:13px;vertical-align:-2px"><use href="#i-minus"/></svg>支出台账</span>
+    </div>
+    <div class="muted" style="font-size:13px;margin-top:5px;">记录所有本金的赎回与取出，改动后自动重算收益</div>
+  </div>
+  {% if is_admin %}<button class="btn btn-expense" onclick="openExpenseModal()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-plus"/></svg>记录支出</button>{% endif %}
+</div>
+
+<div class="wd-summary">
+  <div class="sm"><div class="l">支出笔数</div><div class="v cnt">{{ data.withdrawals|length }}</div></div>
+  <div class="sm"><div class="l">累计支出金额</div><div class="v">−¥{{ '%.2f'|format(data.portfolio.total_expense) }}</div></div>
+</div>
+
+{% if data.withdrawals %}
+<!-- 每条记录一个独立背景框 -->
+{% for w in data.withdrawals %}
+<div class="wdcard">
+  <div class="wdcard-top">
+    <div>
+      <div class="wdcard-date">{{ w.expense_date }}</div>
+      <div class="wdcard-scope">
+        {% if w.bank %}<span class="badge badge-{{ w.bank }}">{% if w.bank=='psbc' %}邮储{% elif w.bank=='spdb' %}浦发{% else %}建行{% endif %}</span>{% endif %}
+        <span>{{ w.scope_label }}</span>
+      </div>
+    </div>
+    <div class="wdcard-amt">−¥{{ '%.2f'|format(w.amount) }}</div>
+  </div>
+  <div class="wdcard-foot">
+    <div class="wdcard-note">备注：{{ w.note or '-' }}</div>
+    {% if is_admin %}<button class="btn btn-danger" style="padding:6px 11px;font-size:12px;flex:0 0 auto;" onclick="delWithdrawal({{ w.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg>删除</button>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <div class="ico"><svg class="ic" style="width:44px;height:44px;stroke-width:1.5"><use href="#i-minus"/></svg></div>
+  <b>还没有支出记录</b>
+  <div>记录赎回 / 取出后，这里会显示明细并自动重算收益</div>
+</div>
+{% endif %}
+
+<!-- 支出录入弹窗 -->
+<div class="modal-mask" id="expenseModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head">
+      <h3>记录本金支出</h3>
+      <button class="modal-close" onclick="closeModal('expenseModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="bank-tabs" id="expBankTabs">
+        <button class="bank-tab active" data-bank="ccb" onclick="setExpenseBank('ccb')"><span class="tab-logo"><svg><use href="#logo-ccb"/></svg></span>建行</button>
+        <button class="bank-tab" data-bank="psbc" onclick="setExpenseBank('psbc')"><span class="tab-logo"><svg><use href="#logo-psbc"/></svg></span>邮储</button>
+        <button class="bank-tab" data-bank="spdb" onclick="setExpenseBank('spdb')"><span class="tab-logo spdb"><svg><use href="#logo-spdb"/></svg></span>浦发</button>
+      </div>
+      <div class="form-row" id="expHoldingRow" style="display:none;">
+        <label>选择要扣减的产品</label>
+        <select id="e-holding"></select>
+        <div class="hint">支出只从所选这只产品扣减，其他产品不受影响</div>
+      </div>
+      <div class="form-row">
+        <label>支出金额（元）</label>
+        <input type="number" id="e-amount" step="0.01" placeholder="如 1000.00">
+      </div>
+      <div class="form-row">
+        <label>支出日期</label>
+        <input type="date" id="e-date">
+        <div class="hint">从该日起，扣掉的本金不再计息；之前已赚收益保留</div>
+      </div>
+      <div class="form-row">
+        <label>备注（可选）</label>
+        <input type="text" id="e-note" placeholder="如：赎回部分本金">
+      </div>
+      <div class="hint" id="expScopeHint" style="background:#f8fafc;padding:10px;border-radius:8px;line-height:1.8;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('expenseModal')">取消</button>
+      <button class="btn btn-primary" id="btn-expense" onclick="submitExpense()">保存并重算</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const BANK_LABEL={ccb:'建行',psbc:'邮储',spdb:'浦发'};
+const HOLDINGS=[{% for h in data.holdings %}{id:{{ h.id }},bank:"{{ h.bank }}",name:{{ h.product_name|tojson }},settled:{{ 'true' if h.initial_settled else 'false' }}},{% endfor %}];
+let expenseBank='ccb';
+document.getElementById('e-date').value=todayStr();
+
+function openExpenseModal(){
+  document.getElementById('e-amount').value='';
+  document.getElementById('e-note').value='';
+  document.getElementById('e-date').value=todayStr();
+  setExpenseBank('ccb');
+  openModal('expenseModal');
+}
+function setExpenseBank(bank){
+  expenseBank=bank;
+  document.querySelectorAll('#expBankTabs .bank-tab').forEach(b=>b.classList.toggle('active',b.dataset.bank===bank));
+  const settled=HOLDINGS.filter(h=>h.bank===bank&&h.settled);
+  const row=document.getElementById('expHoldingRow');
+  const sel=document.getElementById('e-holding');
+  if(bank==='ccb'){
+    row.style.display='none';
+  }else{
+    row.style.display='block';
+    sel.innerHTML=settled.length
+      ? settled.map(h=>`<option value="${h.id}">${escapeHtml(h.name)}</option>`).join('')
+      : '<option value="">该行暂无已入账产品</option>';
+  }
+  updateExpenseHint();
+}
+function updateExpenseHint(){
+  const amt=parseFloat(document.getElementById('e-amount').value||'0');
+  const hint=document.getElementById('expScopeHint');
+  const bank=expenseBank;
+  const settled=HOLDINGS.filter(h=>h.bank===bank&&h.settled);
+  if(bank==='ccb'){
+    hint.innerHTML=`建行：金额将在该行 <b>${settled.length}</b> 只产品之间<b>平均分摊</b>`+
+      (amt>0&&settled.length?`，每只约 <b>¥${(amt/settled.length).toFixed(2)}</b>`:'')+
+      `。扣掉的本金不再计息，已赚收益保留。`;
+  }else{
+    const opt=document.getElementById('e-holding').selectedOptions[0];
+    const name=opt?opt.textContent:'';
+    hint.innerHTML=`${BANK_LABEL[bank]}：支出只从 <b>${name?escapeHtml(name):'所选产品'}</b> 扣减`+
+      (amt>0?` <b>¥${amt.toFixed(2)}</b>`:'')+`，其他产品不受影响。`;
+  }
+}
+document.getElementById('e-amount').addEventListener('input',updateExpenseHint);
+document.getElementById('e-holding').addEventListener('change',updateExpenseHint);
+
+async function submitExpense(){
+  const amount=document.getElementById('e-amount').value.trim();
+  const expense_date=document.getElementById('e-date').value;
+  const note=document.getElementById('e-note').value.trim();
+  const bank=expenseBank;
+  let holding_id=null;
+  if(bank!=='ccb'){
+    const v=document.getElementById('e-holding').value;
+    if(!v){toast('该行暂无已入账产品，无法登记支出',false);return;}
+    holding_id=parseInt(v);
+  }
+  if(!amount||!expense_date||parseFloat(amount)<=0){toast('请填写支出金额和日期',false);return;}
+  const btn=document.getElementById('btn-expense');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 重算中...';
+  const res=await api('/api/withdrawals',{method:'POST',
+    body:JSON.stringify({amount,expense_date,note,bank,holding_id})});
+  btn.disabled=false;btn.textContent='保存并重算';
+  if(res.ok){
+    toast(bank==='ccb'?'支出已记录，已在建行各产品间平均分摊':'支出已记录，已从所选产品扣减');
+    closeModal('expenseModal');setTimeout(()=>location.reload(),400);
+  }else{toast(res.error||'保存失败',false);}
+}
+
+async function delWithdrawal(id){
+  confirmModal('确定删除这条支出记录？系统会重算收益。',async()=>{
+    const res=await api('/api/withdrawals/'+id,{method:'DELETE'});
+    if(res.ok){toast('已删除并重算');setTimeout(()=>location.reload(),400);}
+    else toast(res.error||'删除失败',false);
+  },{title:'删除支出记录',okText:'删除'});
+}
+</script>
+{% endblock %}

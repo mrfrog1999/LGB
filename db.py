@@ -67,6 +67,19 @@ def init_db():
             last_login    TEXT
         );
 
+        -- 登录历史：记录每次成功登录的"谁 / 何时 / 来自哪个 IP 与设备"
+        CREATE TABLE IF NOT EXISTS login_history (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid          INTEGER,
+            username     TEXT NOT NULL,
+            display_name TEXT DEFAULT '',
+            role         TEXT DEFAULT 'member',
+            login_at     TEXT DEFAULT (datetime('now','localtime')),
+            ip           TEXT DEFAULT '',
+            user_agent   TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_login_history_time ON login_history(login_at DESC);
+
         -- 已发现/关注的产品（产品代码唯一）
         CREATE TABLE IF NOT EXISTS products (
             product_code TEXT PRIMARY KEY,
@@ -151,6 +164,27 @@ def init_db():
             lines    TEXT NOT NULL DEFAULT '[]',       -- JSON 数组
             updated  REAL NOT NULL
         );
+
+        -- 定期存款存单（从「记账日历」小程序移植的定期监控功能）
+        -- owner_uid 关联 users.id，表示这笔存单记在哪个成员名下（复用 LGB 的用户/角色体系）
+        CREATE TABLE IF NOT EXISTS fixed_deposits (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_uid    INTEGER,                        -- 归属成员 users.id；NULL=未指定
+            bank_id      TEXT DEFAULT '',                -- 内置银行 id，如 ccb/psbc
+            bank_name    TEXT DEFAULT '',                -- 银行名称（可手动填写）
+            save_date    TEXT NOT NULL,                  -- 存入/起息日期 YYYY-MM-DD
+            expire_date  TEXT NOT NULL,                  -- 到期日期 YYYY-MM-DD
+            principal    REAL NOT NULL,                  -- 本金（元）
+            rate_percent REAL DEFAULT 0,                 -- 年利率 %
+            term_months  REAL DEFAULT 0,                 -- 存期（月，可带小数）
+            interest     REAL DEFAULT 0,                 -- 预估利息（单利，元）
+            total_money  REAL DEFAULT 0,                 -- 本息合计（元）
+            remark       TEXT DEFAULT '',                -- 备注
+            created_at   TEXT DEFAULT (datetime('now','localtime')),
+            updated_at   TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_fixed_expire ON fixed_deposits(expire_date);
+        CREATE INDEX IF NOT EXISTS idx_fixed_owner ON fixed_deposits(owner_uid);
         """)
 
         # 轻量迁移：旧库补列
@@ -206,6 +240,11 @@ def init_db():
             "psbc_app_overall_annual": "1.33",    # 邮储 App 天乐宝10号七日年化
             "spdb_app_yesterday_profit": "0.37",  # 浦发 App 灵活+ 昨日收益（3 产品合计）
             "spdb_app_overall_annual": "1.41",    # 浦发 App 持仓七日年化
+            # 定期监控：到期提醒（每天固定时间检查次日/当日到期的存单并发邮件）
+            "fixed_notice_enabled": "0",
+            "fixed_notice_time": "09:00",
+            "fixed_notice_email": "",             # 留空则用 mail_to
+            "fixed_notice_last_date": "",         # 上次发送日期，避免同一天重复发
         }
         for k, v in defaults.items():
             c.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, _encode_setting(k, v)))
@@ -516,9 +555,11 @@ BACKUP_TABLES = [
     "withdrawals",
     "yields",
     "profit_snapshots",
+    "fixed_deposits",
+    "login_history",
     "users",
 ]
-BACKUP_VERSION = 2
+BACKUP_VERSION = 4
 
 
 # 敏感设置项：发邮箱的备份必须剔除，避免邮箱授权码/收件人等隐私外泄
@@ -528,6 +569,8 @@ SENSITIVE_SETTING_KEYS = {
 }
 # 导入恢复时永不覆盖的表（脱敏备份不含这些；即使含也不动现有账号）
 PROTECTED_TABLES = {"users"}
+# 发邮箱的脱敏备份同样剔除登录历史（含 IP / 设备，属隐私信息）
+SANITIZE_EXCLUDED_TABLES = {"users", "login_history"}
 
 
 def export_all(sanitize=False):
@@ -548,7 +591,7 @@ def export_all(sanitize=False):
     }
     try:
         for t in BACKUP_TABLES:
-            if sanitize and t in PROTECTED_TABLES:
+            if sanitize and t in SANITIZE_EXCLUDED_TABLES:
                 payload["tables"][t] = []
                 continue
             rows = conn.execute(f'SELECT * FROM "{t}"').fetchall()
@@ -604,7 +647,7 @@ def import_all(payload, mode="replace"):
         if mode == "replace":
             # 按依赖顺序清空（先子表后主表）；settings 与受保护表不整体清空
             for t in ("profit_snapshots", "capital_additions", "withdrawals",
-                      "holdings", "yields", "products"):
+                      "holdings", "yields", "products", "fixed_deposits", "login_history"):
                 c.execute(f'DELETE FROM "{t}"')
             # users 永不删除：脱敏备份不含账号，必须保留现有账号以避免无法登录
             # （完整备份含 users 时也走下面的按键处理，不整体覆盖）
@@ -658,7 +701,8 @@ def import_all(payload, mode="replace"):
         # 同步自动递增序列，避免导入后新增记录主键冲突
         for t, seq_name in (("holdings", "holdings"),
                             ("capital_additions", "capital_additions"),
-                            ("withdrawals", "withdrawals")):
+                            ("withdrawals", "withdrawals"),
+                            ("login_history", "login_history")):
             mx = c.execute(f'SELECT COALESCE(MAX(id),0) FROM "{t}"').fetchone()[0]
             c.execute(
                 "UPDATE sqlite_sequence SET seq=? WHERE name=?",
@@ -706,6 +750,33 @@ def verify_user(username, password):
 def touch_login(user_id):
     with transaction() as c:
         c.execute("UPDATE users SET last_login=datetime('now','localtime') WHERE id=?", (user_id,))
+
+
+def record_login(uid, username, display_name="", role="member", ip="", user_agent=""):
+    """记录一次成功登录到 login_history。"""
+    with transaction() as c:
+        c.execute(
+            "INSERT INTO login_history(uid,username,display_name,role,ip,user_agent,login_at) "
+            "VALUES(?,?,?,?,?,?,datetime('now','localtime'))",
+            (uid, username or "", display_name or "", role or "member", ip or "", user_agent or ""),
+        )
+
+
+def list_login_history(limit=200):
+    """返回最近的登录记录（新到旧），供设置页展示。"""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id,uid,username,display_name,role,login_at,ip,user_agent "
+        "FROM login_history ORDER BY id DESC LIMIT ?", (int(limit),)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def clear_login_history():
+    """清空登录历史（管理员可选操作）。"""
+    with transaction() as c:
+        c.execute("DELETE FROM login_history")
 
 
 def _valid_role(role):
@@ -865,3 +936,164 @@ def fetch_log_active(max_age=180):
     if _time.time() - row["updated"] > max_age:
         return None
     return row["run_id"]
+
+
+# ---------- 定期存款存单（fixed_deposits）----------
+# 从「记账日历」小程序移植的定期监控功能。归属成员 owner_uid 关联 users.id，
+# 复用 LGB 现有的用户/角色体系，不再单独维护邀请码账本与成员表。
+
+def _deposit_row(row):
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "owner_uid": row["owner_uid"],
+        "bank_id": row["bank_id"],
+        "bank_name": row["bank_name"],
+        "save_date": row["save_date"],
+        "expire_date": row["expire_date"],
+        "principal": row["principal"],
+        "rate_percent": row["rate_percent"],
+        "term_months": row["term_months"],
+        "interest": row["interest"],
+        "total_money": row["total_money"],
+        "remark": row["remark"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def list_fixed_deposits(owner_uid=None):
+    """列出全部存单，按到期日升序；可按归属成员过滤。"""
+    conn = get_conn()
+    if owner_uid is None:
+        rows = conn.execute(
+            "SELECT d.*, u.display_name, u.username FROM fixed_deposits d "
+            "LEFT JOIN users u ON u.id=d.owner_uid ORDER BY d.expire_date ASC, d.id DESC"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT d.*, u.display_name, u.username FROM fixed_deposits d "
+            "LEFT JOIN users u ON u.id=d.owner_uid WHERE d.owner_uid=? "
+            "ORDER BY d.expire_date ASC, d.id DESC", (owner_uid,)
+        ).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        item = _deposit_row(r)
+        item["owner_name"] = r["display_name"] or r["username"] or ""
+        out.append(item)
+    return out
+
+
+def get_fixed_deposit(dep_id):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM fixed_deposits WHERE id=?", (dep_id,)).fetchone()
+    conn.close()
+    return _deposit_row(row)
+
+
+def add_fixed_deposit(data):
+    with transaction() as c:
+        cur = c.execute(
+            "INSERT INTO fixed_deposits(owner_uid,bank_id,bank_name,save_date,expire_date,"
+            "principal,rate_percent,term_months,interest,total_money,remark) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (data.get("owner_uid"), data.get("bank_id", ""), data.get("bank_name", ""),
+             data["save_date"], data["expire_date"], data["principal"],
+             data.get("rate_percent", 0), data.get("term_months", 0),
+             data.get("interest", 0), data.get("total_money", 0), data.get("remark", "")),
+        )
+        return cur.lastrowid
+
+
+def update_fixed_deposit(dep_id, data):
+    allowed = ["owner_uid", "bank_id", "bank_name", "save_date", "expire_date",
+               "principal", "rate_percent", "term_months", "interest", "total_money", "remark"]
+    fields, values = [], []
+    for k in allowed:
+        if k in data:
+            fields.append(f"{k}=?")
+            values.append(data[k])
+    if not fields:
+        return 0
+    fields.append("updated_at=datetime('now','localtime')")
+    values.append(dep_id)
+    with transaction() as c:
+        cur = c.execute(f"UPDATE fixed_deposits SET {','.join(fields)} WHERE id=?", values)
+        return cur.rowcount
+
+
+def update_fixed_deposits_owner(ids, owner_uid):
+    """批量修改存单归属成员，返回实际更新条数。owner_uid 可为 None（清除归属）。"""
+    ids = [int(i) for i in ids if str(i).isdigit()]
+    if not ids:
+        return 0
+    marks = ",".join("?" * len(ids))
+    with transaction() as c:
+        cur = c.execute(
+            f"UPDATE fixed_deposits SET owner_uid=?, updated_at=datetime('now','localtime') WHERE id IN ({marks})",
+            [owner_uid] + ids,
+        )
+        return cur.rowcount
+
+
+def delete_fixed_deposit(dep_id):
+    with transaction() as c:
+        cur = c.execute("DELETE FROM fixed_deposits WHERE id=?", (dep_id,))
+        return cur.rowcount
+
+
+def delete_fixed_deposits(ids):
+    ids = [int(i) for i in ids if str(i).isdigit()]
+    if not ids:
+        return 0
+    marks = ",".join("?" * len(ids))
+    with transaction() as c:
+        cur = c.execute(f"DELETE FROM fixed_deposits WHERE id IN ({marks})", ids)
+        return cur.rowcount
+
+
+def add_fixed_deposits_bulk(rows):
+    """批量新增存单（导入用）。rows 为 dict 列表，返回新增条数。"""
+    if not rows:
+        return 0
+    with transaction() as c:
+        for data in rows:
+            c.execute(
+                "INSERT INTO fixed_deposits(owner_uid,bank_id,bank_name,save_date,expire_date,"
+                "principal,rate_percent,term_months,interest,total_money,remark) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (data.get("owner_uid"), data.get("bank_id", ""), data.get("bank_name", ""),
+                 data["save_date"], data["expire_date"], data["principal"],
+                 data.get("rate_percent", 0), data.get("term_months", 0),
+                 data.get("interest", 0), data.get("total_money", 0), data.get("remark", "")),
+            )
+        return len(rows)
+
+
+def clear_fixed_deposits():
+    """清空全部存单（导入覆盖模式用），返回删除条数。"""
+    with transaction() as c:
+        cur = c.execute("DELETE FROM fixed_deposits")
+        return cur.rowcount
+
+
+def fixed_deposits_expiring_on(dates):
+    """查出到期日在给定日期集合内的存单（用于到期提醒）。dates: ['YYYY-MM-DD', ...]"""
+    if not dates:
+        return []
+    marks = ",".join("?" * len(dates))
+    conn = get_conn()
+    rows = conn.execute(
+        f"SELECT d.*, u.display_name, u.username FROM fixed_deposits d "
+        f"LEFT JOIN users u ON u.id=d.owner_uid WHERE d.expire_date IN ({marks}) "
+        f"ORDER BY d.expire_date ASC", list(dates)
+    ).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        item = _deposit_row(r)
+        item["owner_name"] = r["display_name"] or r["username"] or ""
+        out.append(item)
+    return out

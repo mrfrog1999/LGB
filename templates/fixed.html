@@ -1,0 +1,1497 @@
+{% extends "base.html" %}
+{% block title %}定期监控 · 现金理财监控{% endblock %}
+
+{% block content %}
+<style>
+  /* ===== 定期监控页专用样式（沿用 base 的主题变量）===== */
+  .fx-head{display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+
+  /* 顶部汇总大卡（合并四卡） */
+  .fx-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 24px 20px;
+    background:linear-gradient(135deg,#0b1a3a 0%,#132a5e 45%,#1b3f8f 100%);
+    color:#fff;box-shadow:0 10px 30px rgba(16,38,90,.28);margin-bottom:18px}
+  .fx-hero::before{content:'';position:absolute;left:-10%;right:-10%;bottom:-60px;height:150px;
+    background:radial-gradient(ellipse at 30% 100%,rgba(96,165,250,.30),transparent 62%),
+               radial-gradient(ellipse at 75% 100%,rgba(59,130,246,.28),transparent 62%);
+    pointer-events:none}
+  .fx-hero>*{position:relative;z-index:1}
+  .fx-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .fx-hero-title{font-size:14px;font-weight:600;color:rgba(255,255,255,.72);letter-spacing:.3px}
+  .fx-hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:700;color:#eaf1ff;white-space:nowrap}
+  .fx-hero-dot{width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.20)}
+  .fx-hero-amount{font-size:clamp(30px,6vw,44px);font-weight:800;letter-spacing:-1px;line-height:1.1;margin:14px 0 18px;font-variant-numeric:tabular-nums}
+  .fx-hero-line{height:1px;background:rgba(255,255,255,.16);margin-bottom:16px}
+  .fx-hero-bottom{display:grid;grid-template-columns:1fr 1fr}
+  .fx-hero-cell{padding-left:20px;border-left:1px solid rgba(255,255,255,.16);min-width:0}
+  .fx-hero-cell:first-child{padding-left:0;border-left:none}
+  .fx-hero-cell-v{font-size:clamp(17px,3.4vw,22px);font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fx-hero-cell-k{font-size:11.5px;color:rgba(255,255,255,.62);margin-top:5px;white-space:normal;line-height:1.4}
+  .fx-hero-cell-k #fxStatSoonInterest{font-variant-numeric:tabular-nums}
+  .fx-hero.fx-hero-hidden{display:none}
+
+  /* 视图 tab */
+  .fx-tabs{display:flex;gap:4px;background:#eef1f7;padding:4px;border-radius:12px;margin:0 0 18px;width:fit-content;box-sizing:border-box}
+  .fx-tabs button{border:none;background:transparent;padding:8px 20px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:.2s}
+  .fx-tabs button.active{background:#fff;color:var(--brand);box-shadow:0 1px 4px rgba(16,24,40,.1)}
+
+  .fx-view{display:none}
+  .fx-view.active{display:block}
+
+  /* 工具条 */
+  .fx-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .fx-toolbar select,.fx-toolbar input{border:1px solid var(--border);background:var(--card);border-radius:9px;padding:8px 12px;font-size:13px;color:var(--text);outline:none}
+  .fx-toolbar select:focus,.fx-toolbar input:focus{border-color:var(--brand)}
+  .fx-toolbar .spacer{flex:1}
+
+  /* 筛选结果反馈条 */
+  .fx-filter-info{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin:-2px 0 12px}
+  .fx-filter-info b{color:var(--brand);font-weight:800}
+  .fx-filter-clear{border:none;background:#f1f5f9;color:var(--text);border-radius:6px;padding:2px 9px;font-size:11.5px;cursor:pointer;margin-left:4px}
+  .fx-filter-clear:hover{background:#e8ecf4;color:var(--brand)}
+
+  /* 选中态高亮：表格行 + 移动端卡片 */
+  .fx-table tbody tr.fx-selected{background:#fef2f2 !important;box-shadow:inset 3px 0 0 var(--brand)}
+  .fx-card.fx-selected{border-color:var(--brand);box-shadow:0 0 0 2px rgba(239,68,68,.16),var(--shadow)}
+  .fx-table tbody tr{cursor:pointer}
+
+  /* 底部浮动批量操作栏 */
+  .fx-batch-bar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(160%);display:flex;align-items:center;gap:9px;
+    background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(16,24,40,.20);
+    padding:10px 12px 10px 18px;z-index:90;opacity:0;pointer-events:none;max-width:calc(100vw - 28px);flex-wrap:wrap;justify-content:center;
+    transition:transform .28s cubic-bezier(.2,.9,.25,1),opacity .25s}
+  .fx-batch-bar.show{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:auto}
+  /* 任意弹窗打开时收起批量栏，避免两个浮层重叠挡住弹窗按钮 */
+  .fx-batch-bar.fx-bar-hidden{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(160%) !important}
+  .fx-batch-count{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;padding-right:12px;border-right:1px solid var(--border)}
+  .fx-batch-count b{color:var(--brand);font-size:16px;margin:0 2px}
+  .fx-batch-bar button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .fx-batch-bar button:hover{background:#f6f8fb;border-color:var(--brand)}
+  .fx-batch-bar button.btn-del{background:#dc2626;color:#fff;border-color:#dc2626}
+  .fx-batch-bar button.btn-del:hover{background:#b91c1c}
+  .fx-batch-bar button.btn-close{border:none;background:transparent;color:var(--muted);padding:9px 10px;font-size:19px;line-height:1}
+  .fx-batch-bar button.btn-close:hover{background:#f1f5f9;color:var(--text)}
+  .fx-batch-bar .ic{width:15px;height:15px}
+
+  /* 右下角浮动圆形 + 按钮（新增存单） */
+  .fx-fab{position:fixed;right:22px;bottom:28px;width:56px;height:56px;border:none;border-radius:50%;
+    background:linear-gradient(135deg,#f05252,#dc2626);color:#fff;cursor:pointer;z-index:70;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 10px 26px rgba(220,38,38,.42),0 2px 6px rgba(16,24,40,.18);
+    transition:transform .22s cubic-bezier(.2,.9,.25,1),opacity .22s,box-shadow .22s;
+    -webkit-tap-highlight-color:transparent}
+  .fx-fab .ic{width:28px;height:28px;stroke-width:2.4}
+  .fx-fab:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 14px 32px rgba(220,38,38,.5)}
+  .fx-fab:active{transform:scale(.92)}
+  .fx-fab.fx-fab-hidden{opacity:0;pointer-events:none;transform:scale(.6)}
+  @media(max-width:900px){
+    .fx-fab{right:16px;bottom:calc(92px + env(safe-area-inset-bottom));width:54px;height:54px}
+  }
+  @media(max-width:760px){
+    .fx-batch-bar{width:calc(100vw - 28px);bottom:78px;padding:11px 14px;gap:8px}
+    @supports(padding:env(safe-area-inset-bottom)){.fx-batch-bar{bottom:calc(78px + env(safe-area-inset-bottom))}}
+    .fx-batch-count{flex:1 1 100%;border-right:none;padding:0 0 6px;text-align:center}
+    .fx-batch-bar button{flex:1;justify-content:center}
+    .fx-batch-bar button.btn-close{flex:0 0 auto;width:38px;padding:9px 0}
+  }
+  /* 批量改归属弹窗：醒目的选中提示块 */
+  .fx-owner-hint{display:flex;align-items:center;gap:13px;background:linear-gradient(135deg,#fff5f5,#fff);
+    border:1px solid #ffe0e0;border-radius:14px;padding:14px 16px;margin-bottom:20px}
+  .fx-owner-hint .hint-ico{width:42px;height:42px;border-radius:12px;background:#fee2e2;color:#dc2626;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .fx-owner-hint .hint-ico .ic{width:21px;height:21px;stroke:#dc2626}
+  .fx-owner-hint .hint-t{font-size:14px;font-weight:700;color:#7f1d1d;line-height:1.35}
+  .fx-owner-hint .hint-t b{font-size:19px;color:#dc2626;margin:0 3px;font-variant-numeric:tabular-nums}
+  .fx-owner-hint .hint-s{font-size:12px;color:#b91c1c;opacity:.72;margin-top:4px}
+  .fx-owner-hint .hint-s::before{content:'·';margin-right:5px;font-weight:700}
+  #fxView-list{padding-bottom:56px}
+
+  /* 台账表格 */
+  .fx-table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .fx-table-scroll{overflow-x:auto}
+  table.fx-table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+  .fx-table th{background:#fafbfe;color:var(--muted);font-weight:700;font-size:12px;text-align:left;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .fx-table td{padding:12px 14px;border-bottom:1px solid #f1f4f9}
+  .fx-table tr:last-child td{border-bottom:none}
+  .fx-table tbody tr:hover{background:#fafbfe}
+  .fx-bank{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+  .fx-bank img{width:22px;height:22px;border-radius:6px;object-fit:contain;background:#fff;box-shadow:inset 0 0 0 1px var(--border)}
+  .fx-bank .fb-txt{background:#5b6b7f;color:#fff;border-radius:6px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+  .fx-owner{display:inline-block;background:#f1f5f9;color:#475569;border-radius:6px;padding:2px 8px;font-size:11.5px}
+  .fx-tag{display:inline-block;border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:700}
+  .fx-tag.urgent{background:#fef2f2;color:#dc2626}
+  .fx-tag.soon{background:#fff7ed;color:#ea580c}
+  .fx-tag.normal{background:#f0fdf4;color:#16a34a}
+  .fx-tag.done{background:#f1f5f9;color:#94a3b8}
+  .fx-actions button{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:13px}
+  .fx-actions button:hover{background:#f1f5f9;color:var(--brand)}
+  .fx-empty{text-align:center;color:var(--muted);padding:48px 20px;font-size:14px}
+
+  /* 日历 */
+  .fx-cal{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .fx-cal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+  .fx-cal-head b{font-size:17px;font-weight:800}
+  .fx-cal-head .nav-btns{display:flex;gap:6px}
+  .fx-cal-head .nav-btns button{border:1px solid var(--border);background:var(--card);border-radius:8px;width:32px;height:32px;cursor:pointer;color:var(--text);font-size:16px}
+  .fx-cal-head .nav-btns button:hover{background:#f1f5f9}
+  /* 可左右滑动的月份：视口裁切 + 当前层/临时层 + 丝滑过渡 */
+  .fx-cal-viewport{position:relative;overflow:hidden;touch-action:pan-y;-webkit-tap-highlight-color:transparent}
+  .fx-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);will-change:transform;backface-visibility:hidden}
+  .fx-cal-grid.fx-cal-temp{position:absolute;top:0;left:0;right:0;display:none}
+  .fx-cal-wd{background:#fafbfe;text-align:center;padding:9px 0;font-size:12px;font-weight:700;color:var(--muted);border-bottom:1px solid var(--border)}
+  .fx-cal-cell{min-height:64px;border-right:1px solid #f1f4f9;border-bottom:1px solid #f1f4f9;padding:6px;position:relative}
+  .fx-cal-cell:nth-child(7n){border-right:none}
+  .fx-cal-cell.other{background:#fcfdff}
+  .fx-cal-cell.has-ev{cursor:pointer}
+  .fx-cal-cell.has-ev:hover{background:#f0f7ff}
+  .fx-cal-cell.sel{background:#e8f2ff;box-shadow:inset 0 0 0 2px var(--brand)}
+  .fx-cal-cell .dnum{font-size:12px;color:var(--muted);font-weight:600;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%}
+  .fx-cal-cell.today .dnum{background:var(--brand);color:#fff}
+  .fx-cal-dnum-row{display:flex;align-items:center;justify-content:center;gap:3px;min-height:22px}
+  .fx-cal-dots{display:flex;gap:3px}
+  .fx-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .fx-dot.save{background:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.18)}
+  .fx-dot.expire{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.18)}
+  /* 点击日期后的当日明细 */
+  .fx-daydetail{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:14px;overflow:hidden}
+  .fx-daydetail-head{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--border);background:#fafbfe}
+  .fx-daydetail-head b{font-size:15px;font-weight:800}
+  .fx-daydetail-head button{border:none;background:none;font-size:18px;color:var(--muted);cursor:pointer;line-height:1}
+  .fx-daydetail-body{padding:6px 0}
+  .fx-dd-group{padding:8px 18px}
+  .fx-dd-group + .fx-dd-group{border-top:1px dashed var(--border)}
+  .fx-dd-label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px}
+  .fx-dd-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:.15s;margin-bottom:6px}
+  .fx-dd-item:hover{background:#f8faff;border-color:var(--brand)}
+  .fx-dd-item .l{display:flex;align-items:center;gap:10px;min-width:0}
+  .fx-dd-item .l .fx-bank{font-size:13px;font-weight:700;white-space:nowrap}
+  .fx-dd-item .sub{font-size:11px;color:var(--muted);white-space:nowrap}
+  .fx-dd-item .r{text-align:right;font-size:13px;font-weight:700;color:var(--brand);white-space:nowrap}
+  .fx-daydetail-empty{padding:28px 18px;text-align:center;color:var(--muted);font-size:13px}
+
+  /* 统计 */
+  .fx-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
+  .fx-panel.fx-panel-flat{background:transparent;border:none;box-shadow:none;padding:0}
+  .fx-panel h3{font-size:15px;font-weight:800;margin-bottom:14px}
+
+  /* 统计时间筛选条 */
+  .fx-stat-filter{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:13px 16px;margin-bottom:18px}
+  .fx-sf-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .fx-sf-title{font-size:12.5px;font-weight:800;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .fx-sf-title .ic{width:15px;height:15px;stroke:var(--muted)}
+  .fx-sf-modes{display:flex;gap:3px;background:#eef1f7;padding:3px;border-radius:10px}
+  .fx-sf-modes button{border:none;background:transparent;padding:6px 15px;border-radius:8px;font-size:12.5px;
+    font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap;transition:.18s}
+  .fx-sf-modes button.active{background:#fff;color:var(--brand);box-shadow:0 1px 4px rgba(16,24,40,.1)}
+  .fx-sf-fields{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px}
+  .fx-sf-fields select,.fx-sf-fields input[type=date]{border:1px solid var(--border);border-radius:9px;
+    padding:7px 10px;font-size:13px;color:var(--text);background:var(--card);outline:none;max-width:100%}
+  .fx-sf-fields select:focus,.fx-sf-fields input[type=date]:focus{border-color:var(--brand)}
+  .fx-sf-fields .fx-sf-datehint{font-size:12px;color:var(--muted)}
+  .fx-sf-summary{font-size:12px;color:var(--muted);margin-top:11px;padding-top:10px;border-top:1px dashed var(--border)}
+  .fx-sf-summary b{color:var(--brand);font-weight:800}
+  .fx-sf-hidden{display:none !important}
+  @media(max-width:560px){
+    .fx-sf-modes{width:100%}
+    .fx-sf-modes button{flex:1;padding:7px 4px;font-size:12px}
+    .fx-sf-fields select,.fx-sf-fields input[type=date]{flex:1;min-width:110px}
+  }
+
+  /* 成员/提醒设置卡 */
+  .fx-setting-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .fx-member{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1f4f9}
+  .fx-member:last-child{border-bottom:none}
+  .fx-member .av{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#fb7137,#ef4444);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:0 0 auto}
+  .fx-member .mn{flex:1;min-width:0}
+  .fx-member .mn b{font-size:13.5px}
+  .fx-member .mn small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+  .fx-form-line{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+  .fx-form-line label{font-size:13px;font-weight:600;color:var(--text)}
+  .fx-form-line input[type=text],.fx-form-line input[type=time]{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);outline:none;width:190px}
+  .fx-form-line input:focus{border-color:var(--brand)}
+  /* 开关 */
+  .fx-switch{position:relative;width:44px;height:24px;flex:0 0 auto}
+  .fx-switch input{opacity:0;width:0;height:0}
+  .fx-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#cbd5e1;border-radius:24px;transition:.2s}
+  .fx-slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+  .fx-switch input:checked + .fx-slider{background:var(--brand)}
+  .fx-switch input:checked + .fx-slider:before{transform:translateX(20px)}
+
+  /* 新增/编辑弹窗表单 */
+  .fx-form-field{margin-bottom:14px}
+  .fx-form-field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+  .fx-form-field input,.fx-form-field select,.fx-form-field textarea{width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13.5px;color:var(--text);outline:none;background:var(--card)}
+  .fx-form-field input:focus,.fx-form-field select:focus,.fx-form-field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(239,68,68,.08)}
+  .fx-form-field textarea{resize:vertical;min-height:56px}
+  .fx-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .fx-calc-box{background:#fafbfe;border:1px dashed var(--border);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;font-size:13px;margin-top:4px}
+  .fx-calc-box b{color:var(--brand)}
+  .fx-bank-picker{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-height:260px;overflow:auto;margin-top:6px}
+  .fx-bank-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:11px;text-align:center;background:var(--card)}
+  .fx-bank-opt:hover,.fx-bank-opt.sel{border-color:var(--brand);background:#fef2f2}
+  .fx-bank-opt img{width:28px;height:28px;object-fit:contain}
+
+  .modal-mask .modal{width:min(560px,94vw)}
+  @media(max-width:900px){
+    .fx-setting-grid{grid-template-columns:1fr}
+    .fx-form-row{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .fx-hero{padding:18px 18px 16px}
+    .fx-cal-cell{min-height:64px;padding:3px}
+    .fx-cal-ev{font-size:9px;padding:2px 4px}
+    .fx-bank-picker{grid-template-columns:repeat(4,1fr)}
+    /* 头部视图菜单：移动端等分整行 */
+    .fx-tabs{width:100%}
+    .fx-tabs button{flex:1;padding:9px 4px;text-align:center}
+  }
+
+  /* ===== 移动端：台账改为卡片式，避免宽表格横向滚动 ===== */
+  .fx-cards{display:none}
+  @media(max-width:760px){
+    #fxView-list .fx-table-wrap,#fxView-stat .fx-table-wrap{display:none}
+    .fx-cards{display:flex;flex-direction:column;gap:12px}
+    .fx-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+    .fx-card-top{display:flex;align-items:center;gap:9px}
+    .fx-card-check{width:19px;height:19px;flex:0 0 auto;border:1.5px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;color:transparent;background:var(--card);transition:.15s}
+    .fx-card.fx-selected .fx-card-check{background:var(--brand);border-color:var(--brand);color:#fff}
+    .fx-card-check .ic{width:13px;height:13px}
+    .fx-card-bank{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+    .fx-card-bank img{width:24px;height:24px;border-radius:6px;object-fit:contain;background:#fff;box-shadow:inset 0 0 0 1px var(--border)}
+    .fx-card-bank .fb-txt{background:#5b6b7f;color:#fff;border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+    .fx-card-amount{font-size:24px;font-weight:800;letter-spacing:-.5px;margin:11px 0 2px}
+    .fx-card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px 8px;padding-top:12px;margin-top:10px;border-top:1px dashed var(--border)}
+    .fx-card-grid>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .fx-card-grid .k{font-size:11px;color:var(--muted)}
+    .fx-card-grid .v2{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .fx-card-grid .v2.hl{color:var(--brand)}
+    .fx-card-foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #f1f4f9}
+    .fx-card-remark{flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .fx-card-acts{display:flex;gap:6px;flex:0 0 auto}
+    .fx-card-acts button{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:5px 11px;font-size:12px;color:var(--text);cursor:pointer}
+    .fx-card-acts button:active{background:#f1f5f9}
+    .fx-toolbar{gap:8px}
+    .fx-toolbar select{flex:1 1 calc(50% - 8px);min-width:0;width:auto}
+    .fx-toolbar .spacer{display:none}
+    .fx-toolbar .btn{flex:1 1 100%}
+    /* 文件选择框中文化、美化 */
+    .fx-file-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--border);background:#f8fafc;border-radius:9px;padding:9px 14px;font-size:13px;color:var(--text);cursor:pointer;width:100%}
+    .fx-file-btn:active{background:#eef1f7}
+    #fxImportFile{display:none}
+  }
+  .fx-file-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#f8fafc;border-radius:9px;padding:9px 14px;font-size:13px;color:var(--text);cursor:pointer}
+</style>
+
+<!-- 视图切换（页面头部导航） -->
+<div class="fx-tabs">
+  <button class="active" data-view="cal" onclick="switchFxView('cal')">日历</button>
+  <button data-view="list" onclick="switchFxView('list')">台账</button>
+  <button data-view="stat" onclick="switchFxView('stat')">统计</button>
+  <button data-view="setting" onclick="switchFxView('setting')">设置</button>
+</div>
+
+<!-- 顶部汇总大卡 -->
+<div class="fx-hero">
+  <div class="fx-hero-top">
+    <div class="fx-hero-title">定期存款 · 总本金（元）</div>
+    <div class="fx-hero-badge"><span class="fx-hero-dot"></span><span id="fxStatCount">0</span> 笔在存</div>
+  </div>
+  <div class="fx-hero-amount" id="fxStatPrincipal">0.00</div>
+  <div class="fx-hero-line"></div>
+  <div class="fx-hero-bottom">
+    <div class="fx-hero-cell">
+      <div class="fx-hero-cell-v" id="fxStatInterest">0.00</div>
+      <div class="fx-hero-cell-k">预估总利息</div>
+    </div>
+    <div class="fx-hero-cell">
+      <div class="fx-hero-cell-v" id="fxStatSoon">—</div>
+      <div class="fx-hero-cell-k">最近到期 · 到期利息 <span id="fxStatSoonInterest">0.00</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 日历视图 -->
+<div class="fx-view active" id="fxView-cal">
+  <div class="fx-cal">
+    <div class="fx-cal-head">
+      <b id="fxCalTitle">—</b>
+      <div class="nav-btns">
+        <button onclick="fxCalShift(-1)" title="上个月">‹</button>
+        <button onclick="fxCalToday()" title="回到本月">今</button>
+        <button onclick="fxCalShift(1)" title="下个月">›</button>
+      </div>
+    </div>
+    <div class="fx-cal-viewport" id="fxCalViewport">
+      <div class="fx-cal-grid" id="fxCalGrid"></div>
+      <div class="fx-cal-grid fx-cal-temp" id="fxCalGrid2"></div>
+    </div>
+  </div>
+  <div class="fx-daydetail" id="fxDayDetail" style="display:none">
+    <div class="fx-daydetail-head"><b id="fxDayDetailTitle">—</b><button onclick="closeFxDayDetail()" title="关闭">×</button></div>
+    <div class="fx-daydetail-body" id="fxDayDetailBody"></div>
+  </div>
+  <p style="color:var(--muted);font-size:12px;margin-top:10px;">提示：<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;vertical-align:middle"></span> 蓝点=存入日，<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;vertical-align:middle"></span> 红点=到期日；点击有圆点的日期，可在日历下方查看当日存入/到期的存单。</p>
+</div>
+
+<!-- 台账视图 -->
+<div class="fx-view" id="fxView-list">
+  <div class="fx-toolbar">
+    <select id="fxFilterBank" onchange="onFxFilterChange()"><option value="">全部银行</option></select>
+    <select id="fxFilterOwner" onchange="onFxFilterChange()"><option value="">全部成员</option></select>
+    <select id="fxFilterStatus" onchange="onFxFilterChange()">
+      <option value="">全部状态</option>
+      <option value="expired">已到期</option>
+      <option value="d90">90天内到期</option>
+      <option value="d180">180天内到期</option>
+      <option value="d365">一年内到期</option>
+      <option value="normal">未到期</option>
+    </select>
+    <div class="spacer"></div>
+  </div>
+  <div class="fx-filter-info" id="fxFilterInfo"></div>
+  <div class="fx-table-wrap"><div class="fx-table-scroll">
+    <table class="fx-table">
+      <thead><tr>
+        {% if is_admin %}<th style="width:34px"><input type="checkbox" id="fxCheckAll" onchange="toggleFxCheckAll()"></th>{% endif %}
+        <th>银行</th><th>归属</th><th>存入日</th><th>到期日</th><th>存期</th>
+        <th style="text-align:right">本金</th><th style="text-align:right">年利率</th>
+        <th style="text-align:right">预估利息</th><th>状态</th><th>备注</th><th>操作</th>
+      </tr></thead>
+      <tbody id="fxListBody"></tbody>
+    </table>
+  </div></div>
+  <!-- 移动端卡片版台账 -->
+  <div class="fx-cards" id="fxCardList"></div>
+</div>
+
+<!-- 统计视图 -->
+<div class="fx-view" id="fxView-stat">
+  <!-- 统计时间筛选条（仅统计页显示） -->
+  <div class="fx-stat-filter">
+    <div class="fx-sf-head">
+      <span class="fx-sf-title"><svg class="ic"><use href="#i-clock"/></svg>统计范围</span>
+      <div class="fx-sf-modes" id="fxSfModes">
+        <button data-fsmode="all" class="active" onclick="fxStatMode('all')">全部</button>
+        <button data-fsmode="year" onclick="fxStatMode('year')">按年</button>
+        <button data-fsmode="month" onclick="fxStatMode('month')">按月</button>
+        <button data-fsmode="day" onclick="fxStatMode('day')">看日</button>
+      </div>
+    </div>
+    <div class="fx-sf-fields">
+      <select id="fxSfBank" onchange="onFxSfDimChange()" title="银行"><option value="">全部银行</option></select>
+      <select id="fxSfOwner" onchange="onFxSfDimChange()" title="成员"><option value="">全部成员</option></select>
+    </div>
+    <div class="fx-sf-fields" id="fxSfFields" style="display:none">
+      <select id="fxSfField" onchange="onFxSfFieldChange()" title="日期依据">
+        <option value="save_date">按存入日</option>
+        <option value="expire_date">按到期日</option>
+      </select>
+      <select id="fxSfYear" onchange="onFxSfChange()" title="年份"></select>
+      <select id="fxSfMonth" onchange="onFxSfChange()" title="月份"></select>
+      <input type="date" id="fxSfDay" onchange="onFxSfChange()" title="日期">
+    </div>
+    <div class="fx-sf-summary" id="fxSfSummary">统计范围：全部存单 · 上方汇总与下方明细将随之同步</div>
+  </div>
+  <!-- 存单明细列表：与台账显示一致，跟随统计时间筛选 -->
+  <div class="fx-panel fx-panel-flat">
+    <h3>存单明细 <span style="font-size:12px;font-weight:600;color:var(--muted)" id="fxStatDetailCount"></span></h3>
+    <div class="fx-table-wrap"><div class="fx-table-scroll">
+      <table class="fx-table">
+        <thead><tr>
+          <th>银行</th><th>归属</th><th>存入日</th><th>到期日</th><th>存期</th>
+          <th style="text-align:right">本金</th><th style="text-align:right">年利率</th>
+          <th style="text-align:right">预估利息</th><th>状态</th><th>备注</th>
+        </tr></thead>
+        <tbody id="fxStatDetailBody"></tbody>
+      </table>
+    </div></div>
+    <div class="fx-cards" id="fxStatDetailCards"></div>
+  </div>
+</div>
+
+<!-- 设置视图 -->
+<div class="fx-view" id="fxView-setting">
+  <div class="fx-setting-grid">
+    <div class="fx-panel">
+      <h3>成员管理</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">存单可指定归属成员。成员账号在「设置 → 用户管理」中添加。</p>
+      <div id="fxMemberList"></div>
+    </div>
+    <div class="fx-panel">
+      <h3>到期邮件提醒</h3>
+      <div class="fx-form-line">
+        <label>启用到期提醒</label>
+        <label class="fx-switch"><input type="checkbox" id="fxNoticeOn" onchange="saveFxNotice()"><span class="fx-slider"></span></label>
+      </div>
+      <div class="fx-form-line"><label>提醒时间（每天）</label><input type="time" id="fxNoticeTime" value="{{ settings.fixed_notice_time or '09:00' }}" onchange="saveFxNotice()"></div>
+      <div class="fx-form-line"><label>收件邮箱（留空用系统收件人）</label><input type="text" id="fxNoticeEmail" value="{{ settings.fixed_notice_email or '' }}" placeholder="留空用系统收件人"></div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-primary" onclick="saveFxNotice()">保存设置</button>
+        {% if is_admin %}<button class="btn btn-ghost" onclick="sendFxNoticeTest()">发送测试邮件</button>{% endif %}
+      </div>
+      <p style="color:var(--muted);font-size:11.5px;margin-top:14px;line-height:1.7;">开启后，每天在设定时间检查存单，<b>每笔存单会在到期前一天和到期当天各发一次邮件提醒</b>（同一天只发一次）。</p>
+    </div>
+    {% if is_admin %}
+    <div class="fx-panel" style="grid-column:1/-1">
+      <h3>数据导入 / 导出</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px;line-height:1.7;">
+        支持「支付宝记账日历」导出的 <b>finance-calendar</b> JSON 格式，可用于备份迁移或批量录入存单。导入可选择「追加」或「覆盖」模式；导出为可下载的 JSON 文件。
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="openFxImportModal()">⇩ 导入存单</button>
+        <button class="btn btn-ghost" onclick="exportFxJson()">⇧ 导出 JSON</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 新增/编辑存单弹窗 -->
+<div class="modal-mask" id="depositModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="depositModalTitle">新增存单</h3>
+      <button class="modal-close" onclick="closeModal('depositModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-dep-id">
+      <div class="fx-form-field">
+        <label>归属成员</label>
+        <select id="f-dep-owner"></select>
+      </div>
+      <div class="fx-form-field">
+        <label>银行</label>
+        <input type="text" id="f-dep-bankname" placeholder="点击下方可选，或直接输入银行名称" oninput="onBankNameInput()">
+        <div class="fx-bank-picker" id="fxBankPicker"></div>
+      </div>
+      <div class="fx-form-row">
+        <div class="fx-form-field"><label>存入日期</label><input type="date" id="f-dep-save" onchange="calcFxPreview()"></div>
+        <div class="fx-form-field"><label>到期日期</label><input type="date" id="f-dep-expire" onchange="calcFxPreview()"></div>
+      </div>
+      <div class="fx-form-row">
+        <div class="fx-form-field"><label>本金（元）</label><input type="number" id="f-dep-principal" step="0.01" placeholder="100000" oninput="calcFxPreview()"></div>
+        <div class="fx-form-field"><label>年利率（%）</label><input type="number" id="f-dep-rate" step="0.0001" placeholder="2.25" oninput="calcFxPreview()"></div>
+      </div>
+      <div class="fx-form-field"><label>备注（选填）</label><textarea id="f-dep-remark" placeholder="如：到期转存 / 存单存放位置"></textarea></div>
+      <div class="fx-calc-box">
+        <span>存期 <b id="fxCalcTerm">—</b></span>
+        <span>预估利息 <b id="fxCalcInterest">—</b></span>
+        <span>本息合计 <b id="fxCalcTotal">—</b></span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('depositModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveDeposit()">保存存单</button>
+    </div>
+  </div>
+</div>
+
+<!-- 存单详情弹窗 -->
+<div class="modal-mask" id="depositDetailModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <h3>存单详情</h3>
+      <button class="modal-close" onclick="closeModal('depositDetailModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body" id="fxDetailBody"></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal('depositDetailModal')">知道了</button></div>
+  </div>
+</div>
+
+<!-- 导入存单弹窗 -->
+<div class="modal-mask" id="fxImportModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>导入定期存单</h3>
+      <button class="modal-close" onclick="closeModal('fxImportModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--muted);font-size:12px;line-height:1.7;margin-bottom:14px;">
+        支持「支付宝记账日历」导出的 <b>finance-calendar</b> JSON 文件。可直接选择文件，或把 JSON 内容粘贴到下方。
+      </p>
+      <div class="fx-form-field">
+        <label>选择 JSON 文件</label>
+        <label class="fx-file-btn" for="fxImportFile">📁 <span id="fxImportFileName">点击选择文件</span></label>
+        <input type="file" id="fxImportFile" accept=".json,application/json" onchange="onFxImportFile()">
+      </div>
+      <div class="fx-form-field">
+        <label>或粘贴 JSON 内容</label>
+        <textarea id="fxImportText" placeholder='{"app":"finance-calendar","version":1,"items":[...]}' style="min-height:100px;font-family:monospace;font-size:12px" oninput="onFxImportText()"></textarea>
+      </div>
+      <div class="fx-form-row">
+        <div class="fx-form-field"><label>导入方式</label>
+          <select id="fxImportMode">
+            <option value="append">追加到现有存单</option>
+            <option value="replace">覆盖（清空后导入）</option>
+          </select>
+        </div>
+        <div class="fx-form-field"><label>归属成员</label><select id="fxImportOwner"></select></div>
+      </div>
+      <div id="fxImportPreview" style="background:#fafbfe;border:1px dashed var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--muted);line-height:1.7;">尚未选择数据</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('fxImportModal')">取消</button>
+      <button class="btn btn-primary" id="fxImportBtn" onclick="doFxImport()">确认导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批量改归属成员弹窗 -->
+<div class="modal-mask" id="fxBatchOwnerModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <h3>批量修改归属成员</h3>
+      <button class="modal-close" onclick="closeModal('fxBatchOwnerModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="fx-owner-hint">
+        <div class="hint-ico"><svg class="ic"><use href="#i-user"/></svg></div>
+        <div>
+          <div class="hint-t">将选中的 <b id="fxBatchOwnerCount">0</b> 笔存单</div>
+          <div class="hint-s">批量修改归属成员，选定后点「确认修改」生效</div>
+        </div>
+      </div>
+      <div class="fx-form-field">
+        <label>目标成员</label>
+        <select id="fxBatchOwnerSel"></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('fxBatchOwnerModal')">取消</button>
+      <button class="btn btn-primary" id="fxBatchOwnerBtn" onclick="doBatchOwner()">确认修改</button>
+    </div>
+  </div>
+</div>
+
+{% if is_admin %}
+<!-- 底部浮动批量操作栏：单击存单选中后出现 -->
+<div class="fx-batch-bar" id="fxBatchBar">
+  <span class="fx-batch-count">已选 <b id="fxBatchCount">0</b> 笔</span>
+  <button id="fxCheckAllBtn" onclick="toggleCheckAllBtn()">☑ 全选</button>
+  <button id="fxBatchOwner" onclick="openBatchOwnerModal()">
+    <svg class="ic"><use href="#i-user"/></svg>改成员</button>
+  <button class="btn-del" id="fxBatchDel" onclick="batchDeleteFx()">
+    <svg class="ic"><use href="#i-trash"/></svg>删除</button>
+  <button class="btn-close" onclick="clearFxSelection()" title="取消选择">×</button>
+</div>
+<!-- 右下角浮动圆形 + 按钮：新增存单 -->
+<button class="fx-fab" id="fxFab" onclick="location.href='/fixed/deposit'" title="新增存单" aria-label="新增存单">
+  <svg class="ic"><use href="#i-plus"/></svg>
+</button>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ===== 定期监控页逻辑 =====
+const IS_ADMIN_FX = {{ 'true' if is_admin else 'false' }};
+const FX_USERS = {{ users|tojson }};
+let FX_DEPOSITS = [];
+// 统计时间筛选状态：mode=all|year|month|day，field=save_date|expire_date
+const FX_STAT_FILTER = {mode:'all', field:'save_date', year:'', month:'', day:'', bank:'', owner:''};
+
+// 银行库（与小程序一致，有 logo 的 11 家 + 无 logo 的常见银行）
+const FX_BANKS = [
+  {id:'icbc',name:'工商银行',short:'工行',logo:'/static/banks/icbc.png'},
+  {id:'ccb',name:'建设银行',short:'建行',logo:'/static/banks/ccb.png'},
+  {id:'abc',name:'农业银行',short:'农行',logo:'/static/banks/abc.png'},
+  {id:'boc',name:'中国银行',short:'中行',logo:'/static/banks/boc.png'},
+  {id:'bocom',name:'交通银行',short:'交行',logo:'/static/banks/bocom.png'},
+  {id:'psbc',name:'邮储银行',short:'邮储',logo:'/static/banks/psbc.png'},
+  {id:'cmb',name:'招商银行',short:'招商',logo:'/static/banks/cmb.png'},
+  {id:'citic',name:'中信银行',short:'中信',logo:'/static/banks/citic.png'},
+  {id:'spdb',name:'浦发银行',short:'浦发',logo:'/static/banks/spdb.png'},
+  {id:'bob',name:'北京银行',short:'北京',logo:'/static/banks/bob.png'},
+  {id:'cmbc',name:'民生银行',short:'民生'},
+  {id:'cib',name:'兴业银行',short:'兴业'},
+  {id:'ceb',name:'光大银行',short:'光大'},
+  {id:'pab',name:'平安银行',short:'平安'},
+  {id:'hxb',name:'华夏银行',short:'华夏'},
+  {id:'cgb',name:'广发银行',short:'广发'},
+  {id:'shb',name:'上海银行',short:'上海'},
+  {id:'nbcb',name:'宁波银行',short:'宁波'},
+  {id:'njcb',name:'南京银行',short:'南京'},
+  {id:'bohai',name:'渤海银行',short:'渤海'},
+  {id:'hfbank',name:'恒丰银行',short:'恒丰'},
+  {id:'czbank',name:'浙商银行',short:'浙商'},
+  {id:'jsbank',name:'江苏银行',short:'江苏'},
+  {id:'hsbank',name:'徽商银行',short:'徽商'},
+  {id:'webank',name:'微众银行',short:'微众'},
+  {id:'mybank',name:'网商银行',short:'网商'}
+];
+function fxBankByName(name){
+  if(!name) return null;
+  const s=String(name).trim();
+  let b=FX_BANKS.find(x=>x.name===s);
+  if(b) return b;
+  const core=s.replace(/银行|Bank|bank/g,'');
+  b=FX_BANKS.find(x=>x.name.replace(/银行/g,'').indexOf(core)>-1 && core);
+  return b||null;
+}
+function fxBankHtml(name){
+  const b=fxBankByName(name);
+  if(b&&b.logo) return `<span class="fx-bank"><img src="${b.logo}" alt="">${esc(name)}</span>`;
+  if(b) return `<span class="fx-bank"><span class="fb-txt">${esc(b.short)}</span>${esc(name)}</span>`;
+  return `<span class="fx-bank"><span class="fb-txt">${esc(String(name||'').slice(0,2))}</span>${esc(name)}</span>`;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ---------- 计算 ----------
+function fxDaysBetween(a,b){
+  const da=new Date(a+'T00:00:00'), db=new Date(b+'T00:00:00');
+  return Math.round((db-da)/86400000);
+}
+function fxAddMonths(dateStr,months){
+  const p=dateStr.split('-').map(Number);
+  const base=new Date(p[0],p[1]-1+months,1);
+  const last=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
+  base.setDate(Math.min(p[2],last));
+  return fmtD(base);
+}
+function fmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function fxTermMonths(start,end){
+  if(!start||!end) return 0;
+  const days=fxDaysBetween(start,end);
+  if(days<=0) return 0;
+  const a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00');
+  let months=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+  if(months<0) return 0;
+  if(fxAddMonths(start,months)===end) return months;
+  if(months>0&&fxAddMonths(start,months-1)===end) return months-1;
+  if(b.getDate()<a.getDate()) months-=1;
+  if(months<0) months=0;
+  const rest=Math.max(0,fxDaysBetween(fxAddMonths(start,months),end));
+  return months+Math.min(rest,30)/30;
+}
+function fxCalc(principal,rate,months){
+  const p=Number(principal)||0,r=Number(rate)||0,m=Number(months)||0;
+  if(p<=0||r<=0||m<=0) return {interest:0,total:p};
+  const interest=Math.round(p*(r/100)*(m/12)*100)/100;
+  return {interest,total:Math.round((p+interest)*100)/100};
+}
+function fxFormatTerm(m){
+  if(!m||m<=0) return '—';
+  const whole=Math.floor(m+1e-9), rem=Math.round((m-whole)*30);
+  const y=Math.floor(whole/12), mo=whole%12;
+  let t=''; if(y)t+=y+'年'; if(mo)t+=mo+'个月';
+  if(!t)t=rem>0?rem+'天':'不足1月'; else if(rem>0)t+=rem+'天';
+  return t;
+}
+function fxStatus(d){
+  const days=fxDaysBetween(todayStr(),d.expire_date);
+  if(days<0) return {cls:'done',txt:'已到期'};
+  if(days===0) return {cls:'urgent',txt:'今日到期'};
+  if(days<=30) return {cls:'soon',txt:days+'天后'};
+  return {cls:'normal',txt:'未到期'};
+}
+function money2(n){return '¥'+(Number(n)||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// ---------- 加载 ----------
+async function loadFx(){
+  const r=await api('/api/fixed/deposits');
+  if(!r||!r.ok){toast('加载存单失败',false);return;}
+  FX_DEPOSITS=r.list||[];
+  FX_SELECTED=new Set();
+  fxBuildSfOptions();          // 依据最新数据构建统计筛选的年月选项
+  fxRefreshStat();             // 顶部汇总 + 统计图表（按筛选）
+  renderFxList(); renderFxCal(); renderFxMembers();
+  buildFxFilters();
+}
+function buildFxFilters(){
+  const bankSel=document.getElementById('fxFilterBank');
+  const ownerSel=document.getElementById('fxFilterOwner');
+  const curB=bankSel.value, curO=ownerSel.value;
+  const banks=[...new Set(FX_DEPOSITS.map(d=>d.bank_name).filter(Boolean))].sort();
+  bankSel.innerHTML='<option value="">全部银行</option>'+banks.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  bankSel.value=curB;
+  ownerSel.innerHTML='<option value="">全部成员</option>'+FX_USERS.map(u=>`<option value="${u.id}">${esc(u.display_name||u.username)}</option>`).join('');
+  ownerSel.value=curO;
+}
+// ===== 统计时间筛选：按年 / 按月 / 看日 =====
+function fxSfDate(d){return FX_STAT_FILTER.field==='expire_date'?d.expire_date:d.save_date;}
+function fxFilteredDeposits(){
+  const f=FX_STAT_FILTER;
+  return FX_DEPOSITS.filter(d=>{
+    // 银行 / 成员维度
+    if(f.bank && d.bank_name!==f.bank) return false;
+    if(f.owner && String(d.owner_uid)!==f.owner) return false;
+    // 时间维度
+    if(f.mode==='all') return true;
+    const v=fxSfDate(d)||'';
+    if(!v)return false;
+    if(f.mode==='year')return v.slice(0,4)===f.year;
+    if(f.mode==='month')return v.slice(0,7)===(f.year+'-'+f.month);
+    if(f.mode==='day')return v===f.day;
+    return true;
+  });
+}
+function fxSfRangeLabel(){
+  const f=FX_STAT_FILTER, field=f.field==='expire_date'?'到期日':'存入日';
+  if(f.mode==='year')return f.year+'年';
+  if(f.mode==='month')return f.year+'年'+Number(f.month)+'月';
+  if(f.mode==='day')return f.day;
+  return '';
+}
+function fxBuildSfOptions(){
+  const dates=FX_DEPOSITS.map(d=>fxSfDate(d)).filter(Boolean).map(String);
+  const years=[...new Set(dates.map(s=>s.slice(0,4)).filter(s=>/^\d{4}$/.test(s)))].sort().reverse();
+  const ySel=document.getElementById('fxSfYear');
+  if(!FX_STAT_FILTER.year||!years.includes(FX_STAT_FILTER.year))FX_STAT_FILTER.year=years[0]||String(new Date().getFullYear());
+  ySel.innerHTML=(years.length?years:[FX_STAT_FILTER.year]).map(y=>`<option value="${y}">${y}年</option>`).join('');
+  ySel.value=FX_STAT_FILTER.year;
+  const mSel=document.getElementById('fxSfMonth');
+  mSel.innerHTML=Array.from({length:12},(_,i)=>{const mm=String(i+1).padStart(2,'0');return `<option value="${mm}">${i+1}月</option>`;}).join('');
+  if(!FX_STAT_FILTER.month)FX_STAT_FILTER.month=String(new Date().getMonth()+1).padStart(2,'0');
+  mSel.value=FX_STAT_FILTER.month;
+  if(!FX_STAT_FILTER.day)FX_STAT_FILTER.day=todayStr();
+  document.getElementById('fxSfDay').value=FX_STAT_FILTER.day;
+  document.getElementById('fxSfField').value=FX_STAT_FILTER.field;
+  // 银行 / 成员维度选项（从当前数据动态生成）
+  const bankSel=document.getElementById('fxSfBank');
+  const banks=[...new Set(FX_DEPOSITS.map(d=>d.bank_name).filter(Boolean))].sort();
+  bankSel.innerHTML='<option value="">全部银行</option>'+banks.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  bankSel.value=FX_STAT_FILTER.bank;
+  const ownerSel=document.getElementById('fxSfOwner');
+  ownerSel.innerHTML='<option value="">全部成员</option>'+FX_USERS.map(u=>`<option value="${u.id}">${esc(u.display_name||u.username)}</option>`).join('');
+  ownerSel.value=FX_STAT_FILTER.owner;
+  fxApplySfVisibility();
+}
+function fxApplySfVisibility(){
+  const m=FX_STAT_FILTER.mode;
+  document.getElementById('fxSfFields').style.display=(m==='all')?'none':'flex';
+  document.getElementById('fxSfYear').classList.toggle('fx-sf-hidden',m==='day');
+  document.getElementById('fxSfMonth').classList.toggle('fx-sf-hidden',m!=='month');
+  document.getElementById('fxSfDay').classList.toggle('fx-sf-hidden',m!=='day');
+}
+function fxStatMode(mode){
+  FX_STAT_FILTER.mode=mode;
+  document.querySelectorAll('#fxSfModes button').forEach(b=>b.classList.toggle('active',b.dataset.fsmode===mode));
+  fxApplySfVisibility();
+  fxRefreshStat();
+}
+function onFxSfFieldChange(){
+  FX_STAT_FILTER.field=document.getElementById('fxSfField').value;
+  fxBuildSfOptions();          // 依据新日期字段重建年份选项
+  fxRefreshStat();
+}
+function onFxSfChange(){
+  const f=FX_STAT_FILTER;
+  f.year=document.getElementById('fxSfYear').value;
+  f.month=document.getElementById('fxSfMonth').value;
+  f.day=document.getElementById('fxSfDay').value;
+  fxRefreshStat();
+}
+function onFxSfDimChange(){
+  FX_STAT_FILTER.bank=document.getElementById('fxSfBank').value;
+  FX_STAT_FILTER.owner=document.getElementById('fxSfOwner').value;
+  fxRefreshStat();
+}
+function fxRefreshStat(){
+  const list=fxFilteredDeposits();
+  const f=FX_STAT_FILTER;
+  const fieldName=f.field==='expire_date'?'到期日':'存入日';
+  const parts=[];
+  parts.push(f.mode==='all'?'全部时间':(esc(fxSfRangeLabel())+' · 按'+fieldName));
+  if(f.bank)parts.push(esc(f.bank));
+  if(f.owner){const o=FX_USERS.find(u=>String(u.id)===f.owner);parts.push('成员：'+esc(o?(o.display_name||o.username):f.owner));}
+  const sum=document.getElementById('fxSfSummary');
+  sum.innerHTML=`统计范围：<b>${parts.join(' · ')}</b> · 命中 <b>${list.length}</b> 笔 · 上方汇总与下方明细已同步`;
+  renderFxStats(list);
+  renderFxStatDetail(list);
+}
+function renderFxStats(list){
+  list=list||fxFilteredDeposits();
+  const n=list.length;
+  const principal=list.reduce((a,d)=>a+(Number(d.principal)||0),0);
+  const interest=list.reduce((a,d)=>a+(Number(d.interest)||0),0);
+  const fmt=n=>(Number(n)||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // 最近到期：到期日不早于今天、且日期最早的一笔
+  const today=todayStr();
+  const upcoming=list.filter(d=>d.expire_date&&d.expire_date>=today)
+                     .sort((a,b)=>a.expire_date.localeCompare(b.expire_date));
+  const near=upcoming[0]||null;
+  document.getElementById('fxStatCount').textContent=n;
+  document.getElementById('fxStatPrincipal').textContent=fmt(principal);
+  document.getElementById('fxStatInterest').textContent=fmt(interest);
+  document.getElementById('fxStatSoon').textContent=near?near.expire_date:'—';
+  document.getElementById('fxStatSoonInterest').textContent=near?fmt(near.interest):'0.00';
+}
+
+// ---------- 台账 ----------
+function renderFxList(){
+  const fb=document.getElementById('fxFilterBank').value;
+  const fo=document.getElementById('fxFilterOwner').value;
+  const fs=document.getElementById('fxFilterStatus').value;
+  let list=FX_DEPOSITS.filter(d=>{
+    if(fb&&d.bank_name!==fb) return false;
+    if(fo&&String(d.owner_uid)!==fo) return false;
+    if(fs){
+      const days=fxDaysBetween(todayStr(),d.expire_date);
+      if(fs==='expired'&&days>=0) return false;               // 已到期
+      if(fs==='d90'&&!(days>=0&&days<=90)) return false;       // 90天内
+      if(fs==='d180'&&!(days>=0&&days<=180)) return false;     // 180天内
+      if(fs==='d365'&&!(days>=0&&days<=365)) return false;     // 一年内
+      if(fs==='normal'&&days<0) return false;                  // 未到期
+    }
+    return true;
+  });
+  const body=document.getElementById('fxListBody');
+  if(!list.length){
+    body.innerHTML=`<tr><td colspan="12" class="fx-empty">没有符合条件的存单</td></tr>`;
+    renderFxCards(list);
+    FX_SELECTED=new Set(); syncFxSelection();
+    const fi=document.getElementById('fxFilterInfo');
+    if(fi){const active=fb||fo||fs;fi.innerHTML=active?`筛选出 <b>0</b> 笔 / 共 ${FX_DEPOSITS.length} 笔 <button class="fx-filter-clear" onclick="clearFxFilters()">✕ 清除筛选</button>`:`共 <b>0</b> 笔存单`;}
+    return;
+  }
+  body.innerHTML=list.map(d=>{
+    const s=fxStatus(d);
+    const owner=FX_USERS.find(u=>u.id===d.owner_uid);
+    const ownerName=owner?(owner.display_name||owner.username):(d.owner_name||'—');
+    const chk=IS_ADMIN_FX?`<td><input type="checkbox" class="fx-chk" value="${d.id}" style="pointer-events:none"></td>`:'';
+    const acts=IS_ADMIN_FX?`<td class="fx-actions"><button title="编辑" onclick="location.href=withSharecode('/fixed/deposit?id=${d.id}')">✎</button><button title="删除" onclick="deleteFx(${d.id})">🗑</button></td>`:`<td>—</td>`;
+    return `<tr data-fxid="${d.id}" onclick="onFxRowClick(event,${d.id})">${chk}
+      <td>${fxBankHtml(d.bank_name)}</td>
+      <td><span class="fx-owner">${esc(ownerName)}</span></td>
+      <td>${esc(d.save_date)}</td>
+      <td>${esc(d.expire_date)}</td>
+      <td>${fxFormatTerm(d.term_months)}</td>
+      <td style="text-align:right;font-weight:600">${money2(d.principal)}</td>
+      <td style="text-align:right">${Number(d.rate_percent)||0}%</td>
+      <td style="text-align:right;color:var(--brand);font-weight:600">${money2(d.interest)}</td>
+      <td><span class="fx-tag ${s.cls}">${s.txt}</span></td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${esc(d.remark||'')}</td>
+      ${acts}</tr>`;
+  }).join('');
+  renderFxCards(list);
+  syncFxSelection();
+  // 筛选反馈条
+  const fi=document.getElementById('fxFilterInfo');
+  if(fi){
+    const active=fb||fo||fs;
+    fi.innerHTML=active
+      ? `筛选出 <b>${list.length}</b> 笔 / 共 ${FX_DEPOSITS.length} 笔 <button class="fx-filter-clear" onclick="clearFxFilters()">✕ 清除筛选</button>`
+      : `共 <b>${FX_DEPOSITS.length}</b> 笔存单`;
+  }
+}
+
+// 移动端卡片版台账
+function renderFxCards(list){
+  const box=document.getElementById('fxCardList');
+  if(!box) return;
+  if(!list.length){box.innerHTML='<div class="fx-empty" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">没有符合条件的存单</div>';return;}
+  box.innerHTML=list.map(d=>{
+    const s=fxStatus(d);
+    const owner=FX_USERS.find(u=>u.id===d.owner_uid);
+    const ownerName=owner?(owner.display_name||owner.username):(d.owner_name||'—');
+    const b=fxBankByName(d.bank_name);
+    const bankIcon=b&&b.logo?`<img src="${b.logo}" alt="">`:`<span class="fb-txt">${esc(b?b.short:String(d.bank_name||'').slice(0,2))}</span>`;
+    const chk=IS_ADMIN_FX?`<span class="fx-card-check"><svg class="ic"><use href="#i-check"/></svg></span>`:'';
+    const acts=IS_ADMIN_FX?`<div class="fx-card-acts"><button onclick="event.stopPropagation();location.href=withSharecode('/fixed/deposit?id=${d.id}')">编辑</button><button onclick="event.stopPropagation();deleteFx(${d.id})">删除</button></div>`:'';
+    return `<div class="fx-card ${IS_ADMIN_FX?'fx-selectable':''}" data-fxid="${d.id}" onclick="onFxRowClick(event,${d.id})">
+      <div class="fx-card-top">${chk}<span class="fx-card-bank">${bankIcon}${esc(d.bank_name)}</span><span class="fx-tag ${s.cls}">${s.txt}</span></div>
+      <div class="fx-card-amount">${money2(d.principal)}</div>
+      <div class="fx-card-grid">
+        <div><span class="k">存入日</span><span class="v2">${esc(d.save_date)}</span></div>
+        <div><span class="k">到期日</span><span class="v2">${esc(d.expire_date)}</span></div>
+        <div><span class="k">存期</span><span class="v2">${fxFormatTerm(d.term_months)}</span></div>
+        <div><span class="k">年利率</span><span class="v2">${Number(d.rate_percent)||0}%</span></div>
+        <div><span class="k">预估利息</span><span class="v2 hl">${money2(d.interest)}</span></div>
+        <div><span class="k">归属</span><span class="v2">${esc(ownerName)}</span></div>
+      </div>
+      ${(d.remark||acts)?`<div class="fx-card-foot"><span class="fx-card-remark">${esc(d.remark||'')}</span>${acts}</div>`:''}
+    </div>`;
+  }).join('');
+}
+// 选中状态：单一数据源（表格行与移动端卡片共享），存的是当前筛选结果里被选中的存单 id
+let FX_SELECTED=new Set();
+function currentVisibleIds(){
+  return [...new Set([...document.querySelectorAll('#fxListBody tr[data-fxid], #fxCardList .fx-card[data-fxid]')].map(el=>Number(el.dataset.fxid)))];
+}
+// 单击行/卡片 = 切换选中（编辑、删除按钮不误触）
+function onFxRowClick(e,id){
+  if(e.target.closest('button,a')) return;
+  if(FX_SELECTED.has(id)) FX_SELECTED.delete(id); else FX_SELECTED.add(id);
+  syncFxSelection();
+}
+// 把选中状态同步到 DOM（高亮 + 表格复选框）
+function syncFxSelection(){
+  document.querySelectorAll('#fxListBody tr[data-fxid]').forEach(tr=>{
+    const on=FX_SELECTED.has(Number(tr.dataset.fxid));
+    tr.classList.toggle('fx-selected',on);
+    const cb=tr.querySelector('.fx-chk'); if(cb)cb.checked=on;
+  });
+  document.querySelectorAll('#fxCardList .fx-card[data-fxid]').forEach(el=>{
+    el.classList.toggle('fx-selected',FX_SELECTED.has(Number(el.dataset.fxid)));
+  });
+  const head=document.getElementById('fxCheckAll');
+  if(head){const ids=currentVisibleIds();head.checked=ids.length>0&&ids.every(id=>FX_SELECTED.has(id));}
+  updateFxBatchBtn();
+}
+function getFxCheckedIds(){return [...FX_SELECTED];}
+function toggleFxCheckAll(){
+  const ids=currentVisibleIds();
+  const all=ids.length>0&&ids.every(id=>FX_SELECTED.has(id));
+  FX_SELECTED=all?new Set():new Set(ids);
+  syncFxSelection();
+}
+// 底部栏全选 / 取消全选
+function toggleCheckAllBtn(){
+  const ids=currentVisibleIds();
+  const all=ids.length>0&&ids.every(id=>FX_SELECTED.has(id));
+  FX_SELECTED=all?new Set():new Set(ids);
+  syncFxSelection();
+}
+function clearFxSelection(){FX_SELECTED=new Set();syncFxSelection();}
+// 筛选变化时清空选中，避免隐藏行仍被选中
+function onFxFilterChange(){FX_SELECTED=new Set();renderFxList();}
+function clearFxFilters(){
+  document.getElementById('fxFilterBank').value='';
+  document.getElementById('fxFilterOwner').value='';
+  document.getElementById('fxFilterStatus').value='';
+  FX_SELECTED=new Set();
+  renderFxList();
+}
+function updateFxBatchBtn(){
+  const n=FX_SELECTED.size;
+  const bar=document.getElementById('fxBatchBar');
+  if(bar)bar.classList.toggle('show',n>0);
+  const cnt=document.getElementById('fxBatchCount'); if(cnt)cnt.textContent=n;
+  const ids=currentVisibleIds();
+  const all=ids.length>0&&ids.every(id=>FX_SELECTED.has(id));
+  const cab=document.getElementById('fxCheckAllBtn');
+  if(cab)cab.textContent=all?'☐ 取消全选':'☑ 全选';
+}
+async function batchDeleteFx(){
+  const ids=getFxCheckedIds();
+  if(!ids.length)return;
+  confirmModal(`确定删除选中的 ${ids.length} 笔存单吗？此操作不可恢复。`,async()=>{
+    const r=await api('/api/fixed/deposits/batch-delete',{method:'POST',body:JSON.stringify({ids})});
+    if(r&&r.ok){toast(`已删除 ${r.deleted} 笔`);loadFx();}else toast((r&&r.error)||'删除失败',false);
+  },{title:'批量删除存单',okText:'确认删除',danger:true});
+}
+// 批量修改归属成员
+function openBatchOwnerModal(){
+  if(!IS_ADMIN_FX){infoModal('无权限','当前账号为只读成员，不能修改存单');return;}
+  const ids=getFxCheckedIds();
+  if(!ids.length){toast('请先选择存单',false);return;}
+  document.getElementById('fxBatchOwnerCount').textContent=ids.length;
+  const sel=document.getElementById('fxBatchOwnerSel');
+  sel.innerHTML='<option value="">— 清除归属（不指定成员）—</option>'+FX_USERS.map(u=>`<option value="${u.id}">${esc(u.display_name||u.username)}</option>`).join('');
+  sel.value='';
+  openModal('fxBatchOwnerModal');
+}
+async function doBatchOwner(){
+  const ids=getFxCheckedIds();
+  if(!ids.length){toast('请先选择存单',false);return;}
+  const sel=document.getElementById('fxBatchOwnerSel');
+  const owner_uid=sel.value?Number(sel.value):null;
+  const name=sel.value?sel.options[sel.selectedIndex].text:'清除归属';
+  confirmModal(`确定将选中的 ${ids.length} 笔存单归属改为「${name}」吗？`,async()=>{
+    const r=await api('/api/fixed/deposits/batch-owner',{method:'POST',body:JSON.stringify({ids,owner_uid})});
+    if(r&&r.ok){closeModal('fxBatchOwnerModal');toast(`已修改 ${r.updated} 笔归属`);loadFx();}
+    else toast((r&&r.error)||'修改失败',false);
+  },{title:'批量修改归属',okText:'确认修改'});
+}
+function deleteFx(id){
+  confirmModal('确定删除这笔存单吗？此操作不可恢复。',async()=>{
+    const r=await api('/api/fixed/deposits/'+id,{method:'DELETE'});
+    if(r&&r.ok){toast('已删除');loadFx();}else toast((r&&r.error)||'删除失败',false);
+  },{title:'删除存单',okText:'确认删除',danger:true});
+}
+
+// ---------- 日历 ----------
+let fxCalYear=0,fxCalMonth=0,fxSelDate='';
+let fxCalAnimating=false;
+const FX_CAL_EASE='transform .38s cubic-bezier(.22,.61,.36,1)';
+
+// 生成指定年月的完整日历 HTML（含周标题 + 42 格）
+function fxBuildCalHtml(y,m){
+  const wd=['一','二','三','四','五','六','日'];
+  let html=wd.map(w=>`<div class="fx-cal-wd">${w}</div>`).join('');
+  const first=new Date(y,m,1);
+  let start=(first.getDay()+6)%7; // 周一开头
+  const days=new Date(y,m+1,0).getDate();
+  const prevDays=new Date(y,m,0).getDate();
+  const cells=42;
+  const today=todayStr();
+  for(let i=0;i<cells;i++){
+    let yy=y,mm=m,d,other=false;
+    if(i<start){d=prevDays-start+1+i;mm=m-1;other=true;}
+    else if(i>=start+days){d=i-start-days+1;mm=m+1;other=true;}
+    else d=i-start+1;
+    if(mm<0){mm=11;yy--;} if(mm>11){mm=0;yy++;}
+    const ds=yy+'-'+String(mm+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const saves=FX_DEPOSITS.filter(x=>x.save_date===ds);
+    const exps=FX_DEPOSITS.filter(x=>x.expire_date===ds);
+    const hasEv=saves.length>0||exps.length>0;
+    const isToday=ds===today;
+    const isSel=ds===fxSelDate;
+    html+=`<div class="fx-cal-cell ${other?'other':''} ${isToday?'today':''} ${hasEv?'has-ev':''} ${isSel?'sel':''}" ${hasEv?`onclick="fxSelectDay('${ds}')"`:''}>
+      <div class="fx-cal-dnum-row"><div class="dnum">${d}</div>
+      <div class="fx-cal-dots">${saves.length?'<span class="fx-dot save" title="存入日"></span>':''}${exps.length?'<span class="fx-dot expire" title="到期日"></span>':''}</div></div></div>`;
+  }
+  return html;
+}
+
+// 直接渲染当前月（无动画，用于初始化与视图切换）
+function renderFxCal(){
+  if(!fxCalYear){fxCalToday();return;}
+  document.getElementById('fxCalTitle').textContent=fxCalYear+'年 '+(fxCalMonth+1)+'月';
+  const base=document.getElementById('fxCalGrid');
+  const tmp=document.getElementById('fxCalGrid2');
+  base.style.transition='none';base.style.transform='translateX(0)';
+  tmp.style.display='none';tmp.style.transition='none';tmp.style.transform='translateX(0)';
+  base.innerHTML=fxBuildCalHtml(fxCalYear,fxCalMonth);
+  if(fxSelDate) renderFxDayDetail();
+}
+function fxCalClearSel(){fxSelDate='';const d=document.getElementById('fxDayDetail');if(d)d.style.display='none';}
+
+// 丝滑滑动到目标年月：dir=1 下一月(向左滑) / -1 上一月(向右滑) / 0 不动画
+function fxCalGoTo(y,m,dir){
+  if(y===fxCalYear&&m===fxCalMonth){fxCalClearSel();renderFxCal();return;}
+  if(dir===0||fxCalAnimating){fxCalYear=y;fxCalMonth=m;fxCalClearSel();renderFxCal();return;}
+  fxCalAnimating=true;
+  fxCalClearSel();
+  const base=document.getElementById('fxCalGrid');
+  const tmp=document.getElementById('fxCalGrid2');
+  document.getElementById('fxCalTitle').textContent=y+'年 '+(m+1)+'月';
+  tmp.innerHTML=fxBuildCalHtml(y,m);
+  const from=dir>0?'translateX(100%)':'translateX(-100%)';
+  const baseTo=dir>0?'translateX(-100%)':'translateX(100%)';
+  // 初始态（无过渡）
+  tmp.style.transition='none';tmp.style.transform=from;tmp.style.display='grid';
+  base.style.transition='none';base.style.transform='translateX(0)';
+  void tmp.offsetWidth; // 强制回流，确保初始态生效
+  // 触发动画
+  tmp.style.transition=FX_CAL_EASE;base.style.transition=FX_CAL_EASE;
+  tmp.style.transform='translateX(0)';base.style.transform=baseTo;
+  let committed=false;
+  const finish=()=>{
+    if(committed)return;committed=true;
+    tmp.removeEventListener('transitionend',onEnd);
+    clearTimeout(timer);
+    fxCalYear=y;fxCalMonth=m;
+    base.style.transition='none';base.style.transform='translateX(0)';
+    base.innerHTML=tmp.innerHTML;
+    tmp.style.display='none';
+    void base.offsetWidth;
+    fxCalAnimating=false;
+  };
+  const onEnd=(e)=>{if(e.target===tmp&&e.propertyName==='transform')finish();};
+  tmp.addEventListener('transitionend',onEnd);
+  var timer=setTimeout(finish,480); // 兜底：过渡事件未触发时也能提交
+}
+
+function fxCalToday(){
+  const d=new Date();
+  const y=d.getFullYear(),m=d.getMonth();
+  if(!fxCalYear){fxCalYear=y;fxCalMonth=m;fxCalClearSel();renderFxCal();return;}
+  const cur=y*12+m,old=fxCalYear*12+fxCalMonth;
+  fxCalGoTo(y,m,cur>old?1:(cur<old?-1:0));
+}
+function fxCalShift(n){
+  let y=fxCalYear,m=fxCalMonth+n;
+  if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+  fxCalGoTo(y,m,n>0?1:-1);
+}
+
+// 触摸左右滑动切月：横向位移明显大于纵向才触发，避免与页面上下滚动冲突
+(function bindFxCalSwipe(){
+  const vp=document.getElementById('fxCalViewport');
+  if(!vp)return;
+  let sx=0,sy=0,tracking=false;
+  vp.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){tracking=false;return;}
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;tracking=true;
+  },{passive:true});
+  vp.addEventListener('touchend',e=>{
+    if(!tracking)return;tracking=false;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.3){
+      fxCalShift(dx<0?1:-1); // 左滑→下月，右滑→上月
+    }
+  },{passive:true});
+})();
+// 点击有圆点的日期：在日历下方显示当日存入/到期存单
+function fxSelectDay(ds){
+  fxSelDate=ds;
+  renderFxCal();
+  const box=document.getElementById('fxDayDetail');
+  if(box) box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function closeFxDayDetail(){
+  fxSelDate='';
+  renderFxCal();
+  document.getElementById('fxDayDetail').style.display='none';
+}
+function renderFxDayDetail(){
+  const box=document.getElementById('fxDayDetail');
+  const saves=FX_DEPOSITS.filter(x=>x.save_date===fxSelDate);
+  const exps=FX_DEPOSITS.filter(x=>x.expire_date===fxSelDate);
+  if(!saves.length&&!exps.length){box.style.display='none';return;}
+  box.style.display='block';
+  document.getElementById('fxDayDetailTitle').textContent=fxSelDate+' 当日存单';
+  let h='';
+  if(saves.length){
+    h+='<div class="fx-dd-group"><div class="fx-dd-label"><span class="fx-dot save"></span> 当日存入（'+saves.length+'）</div>';
+    saves.forEach(d=>{h+=fxDayItem(d);});
+    h+='</div>';
+  }
+  if(exps.length){
+    h+='<div class="fx-dd-group"><div class="fx-dd-label"><span class="fx-dot expire"></span> 当日到期（'+exps.length+'）</div>';
+    exps.forEach(d=>{h+=fxDayItem(d);});
+    h+='</div>';
+  }
+  document.getElementById('fxDayDetailBody').innerHTML=h;
+}
+function fxDayItem(d){
+  return `<div class="fx-dd-item" onclick="showFxDetail(${d.id})">
+    <div class="l">${fxBankHtml(d.bank_name)}<span class="sub">${fxFormatTerm(d.term_months)} · ${Number(d.rate_percent)||0}%</span></div>
+    <div class="r">${money2(d.principal)}</div>
+  </div>`;
+}
+function showFxDetail(id){
+  const d=FX_DEPOSITS.find(x=>x.id===id);if(!d)return;
+  const s=fxStatus(d);
+  const owner=FX_USERS.find(u=>u.id===d.owner_uid);
+  const ownerName=owner?(owner.display_name||owner.username):(d.owner_name||'—');
+  document.getElementById('fxDetailBody').innerHTML=`
+    <div style="text-align:center;padding:6px 0 16px">${fxBankHtml(d.bank_name)}</div>
+    <div class="fx-detail-row"><span>归属成员</span><b>${esc(ownerName)}</b></div>
+    <div class="fx-detail-row"><span>存入日期</span><b>${esc(d.save_date)}</b></div>
+    <div class="fx-detail-row"><span>到期日期</span><b>${esc(d.expire_date)}</b></div>
+    <div class="fx-detail-row"><span>存期</span><b>${fxFormatTerm(d.term_months)}</b></div>
+    <div class="fx-detail-row"><span>本金</span><b>${money2(d.principal)}</b></div>
+    <div class="fx-detail-row"><span>年利率</span><b>${Number(d.rate_percent)||0}%</b></div>
+    <div class="fx-detail-row"><span>预估利息</span><b style="color:var(--brand)">${money2(d.interest)}</b></div>
+    <div class="fx-detail-row"><span>本息合计</span><b>${money2(d.total_money)}</b></div>
+    <div class="fx-detail-row"><span>状态</span><b><span class="fx-tag ${s.cls}">${s.txt}</span></b></div>
+    ${d.remark?`<div class="fx-detail-row"><span>备注</span><b>${esc(d.remark)}</b></div>`:''}
+    <style>.fx-detail-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f4f9;font-size:13.5px}.fx-detail-row span{color:var(--muted)}</style>`;
+  openModal('depositDetailModal');
+}
+
+// 统计页存单明细：与台账显示一致的数据列，只读，不做选中/编辑
+function renderFxStatDetail(list){
+  list=list||fxFilteredDeposits();
+  const cntEl=document.getElementById('fxStatDetailCount');
+  if(cntEl)cntEl.textContent='· '+list.length+' 笔';
+  const body=document.getElementById('fxStatDetailBody');
+  const cards=document.getElementById('fxStatDetailCards');
+  if(!body)return;
+  if(!list.length){
+    body.innerHTML='<tr><td colspan="10" class="fx-empty">当前筛选条件下没有存单</td></tr>';
+    if(cards)cards.innerHTML='<div class="fx-empty" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">当前筛选条件下没有存单</div>';
+    return;
+  }
+  // 桌面表格
+  body.innerHTML=list.map(d=>{
+    const s=fxStatus(d);
+    const owner=FX_USERS.find(u=>u.id===d.owner_uid);
+    const ownerName=owner?(owner.display_name||owner.username):(d.owner_name||'—');
+    return `<tr>
+      <td>${fxBankHtml(d.bank_name)}</td>
+      <td><span class="fx-owner">${esc(ownerName)}</span></td>
+      <td>${esc(d.save_date)}</td>
+      <td>${esc(d.expire_date)}</td>
+      <td>${fxFormatTerm(d.term_months)}</td>
+      <td style="text-align:right;font-weight:600">${money2(d.principal)}</td>
+      <td style="text-align:right">${Number(d.rate_percent)||0}%</td>
+      <td style="text-align:right;color:var(--brand);font-weight:600">${money2(d.interest)}</td>
+      <td><span class="fx-tag ${s.cls}">${s.txt}</span></td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${esc(d.remark||'')}</td>
+    </tr>`;
+  }).join('');
+  // 移动端卡片（复用台账卡片结构，但只读）
+  if(cards){
+    cards.innerHTML=list.map(d=>{
+      const s=fxStatus(d);
+      const owner=FX_USERS.find(u=>u.id===d.owner_uid);
+      const ownerName=owner?(owner.display_name||owner.username):(d.owner_name||'—');
+      const b=fxBankByName(d.bank_name);
+      const bankIcon=b&&b.logo?`<img src="${b.logo}" alt="">`:`<span class="fb-txt">${esc(b?b.short:String(d.bank_name||'').slice(0,2))}</span>`;
+      return `<div class="fx-card" data-fxid="${d.id}">
+        <div class="fx-card-top"><span class="fx-card-bank">${bankIcon}${esc(d.bank_name)}</span><span class="fx-tag ${s.cls}">${s.txt}</span></div>
+        <div class="fx-card-amount">${money2(d.principal)}</div>
+        <div class="fx-card-grid">
+          <div><span class="k">存入日</span><span class="v2">${esc(d.save_date)}</span></div>
+          <div><span class="k">到期日</span><span class="v2">${esc(d.expire_date)}</span></div>
+          <div><span class="k">存期</span><span class="v2">${fxFormatTerm(d.term_months)}</span></div>
+          <div><span class="k">年利率</span><span class="v2">${Number(d.rate_percent)||0}%</span></div>
+          <div><span class="k">预估利息</span><span class="v2 hl">${money2(d.interest)}</span></div>
+          <div><span class="k">归属</span><span class="v2">${esc(ownerName)}</span></div>
+        </div>
+        ${d.remark?`<div class="fx-card-foot"><span class="fx-card-remark">${esc(d.remark)}</span></div>`:''}
+      </div>`;
+    }).join('');
+  }
+}
+
+// ---------- 成员 ----------
+function renderFxMembers(){
+  const el=document.getElementById('fxMemberList');
+  el.innerHTML=FX_USERS.map(u=>{
+    const nm=u.display_name||u.username;
+    const cnt=FX_DEPOSITS.filter(d=>d.owner_uid===u.id).length;
+    return `<div class="fx-member"><span class="av">${esc(nm.slice(0,1))}</span>
+      <span class="mn"><b>${esc(nm)}</b><small>${u.role==='admin'?'管理员':'成员'} · ${cnt} 笔存单</small></span></div>`;
+  }).join('')||'<div style="color:var(--muted);font-size:13px">暂无成员</div>';
+}
+
+// ---------- 新增/编辑弹窗 ----------
+function buildBankPicker(){
+  document.getElementById('fxBankPicker').innerHTML=FX_BANKS.map(b=>`
+    <div class="fx-bank-opt" data-bank="${esc(b.name)}" onclick="pickFxBank('${esc(b.name)}')">
+      ${b.logo?`<img src="${b.logo}" alt="">`:`<span class="fb-txt" style="width:28px;height:28px">${esc(b.short)}</span>`}
+      <span>${esc(b.short)}</span>
+    </div>`).join('');
+}
+function pickFxBank(name){
+  document.getElementById('f-dep-bankname').value=name;
+  document.querySelectorAll('.fx-bank-opt').forEach(o=>o.classList.toggle('sel',o.dataset.bank===name));
+}
+function onBankNameInput(){
+  document.querySelectorAll('.fx-bank-opt').forEach(o=>o.classList.toggle('sel',o.dataset.bank===document.getElementById('f-dep-bankname').value.trim()));
+}
+function openDepositModal(id){
+  if(!IS_ADMIN_FX){infoModal('无权限','当前账号为只读成员，不能新增或修改存单');return;}
+  document.getElementById('depositModalTitle').textContent=id?'编辑存单':'新增存单';
+  document.getElementById('f-dep-id').value=id||'';
+  // 归属成员下拉
+  const ownerSel=document.getElementById('f-dep-owner');
+  ownerSel.innerHTML=FX_USERS.map(u=>`<option value="${u.id}">${esc(u.display_name||u.username)}</option>`).join('');
+  const d=id?FX_DEPOSITS.find(x=>x.id===id):null;
+  if(id&&d){
+    ownerSel.value=d.owner_uid||'';
+    document.getElementById('f-dep-bankname').value=d.bank_name||'';
+    document.getElementById('f-dep-save').value=d.save_date||'';
+    document.getElementById('f-dep-expire').value=d.expire_date||'';
+    document.getElementById('f-dep-principal').value=d.principal||'';
+    document.getElementById('f-dep-rate').value=d.rate_percent||'';
+    document.getElementById('f-dep-remark').value=d.remark||'';
+    pickFxBank(d.bank_name||'');
+  }else{
+    ownerSel.value=FX_USERS[0]?FX_USERS[0].id:'';
+    ['f-dep-bankname','f-dep-save','f-dep-expire','f-dep-principal','f-dep-rate','f-dep-remark'].forEach(k=>document.getElementById(k).value='');
+    document.querySelectorAll('.fx-bank-opt').forEach(o=>o.classList.remove('sel'));
+  }
+  calcFxPreview();
+  openModal('depositModal');
+}
+function calcFxPreview(){
+  const sd=document.getElementById('f-dep-save').value;
+  const ed=document.getElementById('f-dep-expire').value;
+  const p=document.getElementById('f-dep-principal').value;
+  const r=document.getElementById('f-dep-rate').value;
+  if(sd&&ed){
+    const m=fxTermMonths(sd,ed);
+    const c=fxCalc(p,r,m);
+    document.getElementById('fxCalcTerm').textContent=fxFormatTerm(m);
+    document.getElementById('fxCalcInterest').textContent=money2(c.interest);
+    document.getElementById('fxCalcTotal').textContent=money2(c.total);
+  }else{
+    document.getElementById('fxCalcTerm').textContent='—';
+    document.getElementById('fxCalcInterest').textContent='—';
+    document.getElementById('fxCalcTotal').textContent='—';
+  }
+}
+async function saveDeposit(){
+  const id=document.getElementById('f-dep-id').value;
+  const bankName=document.getElementById('f-dep-bankname').value.trim();
+  const saveDate=document.getElementById('f-dep-save').value;
+  const expireDate=document.getElementById('f-dep-expire').value;
+  const principal=document.getElementById('f-dep-principal').value;
+  const rate=document.getElementById('f-dep-rate').value;
+  const owner=document.getElementById('f-dep-owner').value;
+  if(!bankName||!saveDate||!expireDate||!principal){toast('请填写银行、存入/到期日期和本金',false);return;}
+  if(fxDaysBetween(saveDate,expireDate)<=0){toast('到期日期必须晚于存入日期',false);return;}
+  const b=fxBankByName(bankName);
+  const body={owner_uid:owner?Number(owner):null,bank_id:b?b.id:'',bank_name:bankName,
+    save_date:saveDate,expire_date:expireDate,principal:Number(principal),
+    rate_percent:Number(rate)||0,remark:document.getElementById('f-dep-remark').value.trim()};
+  const url=id?'/api/fixed/deposits/'+id:'/api/fixed/deposits';
+  const r=await api(url,{method:'POST',body:JSON.stringify(body)});
+  if(r&&r.ok){toast(id?'已保存修改':'存单已添加');closeModal('depositModal');loadFx();}
+  else toast((r&&r.error)||'保存失败',false);
+}
+
+// ---------- 提醒设置 ----------
+function setNoticeUI(){
+  const on=document.getElementById('fxNoticeOn');
+  if(on)on.checked='{{ settings.fixed_notice_enabled }}'==='1';
+}
+async function saveFxNotice(){
+  if(!IS_ADMIN_FX)return;
+  const body={
+    fixed_notice_enabled:document.getElementById('fxNoticeOn').checked?'1':'0',
+    fixed_notice_time:document.getElementById('fxNoticeTime').value,
+    fixed_notice_email:document.getElementById('fxNoticeEmail').value.trim()
+  };
+  const r=await api('/api/settings',{method:'POST',body:JSON.stringify(body)});
+  toast(r&&r.ok?'提醒设置已保存':((r&&r.error)||'保存失败'),!!(r&&r.ok));
+}
+async function sendFxNoticeTest(){
+  const r=await api('/api/fixed/notice/test',{method:'POST',body:'{}'});
+  infoModal('测试邮件',r&&r.ok?'测试邮件已发送，请查收':((r&&r.error)||'发送失败'));
+}
+
+// ---------- 导入 / 导出 ----------
+let FX_IMPORT_DATA = null;
+
+function exportFxJson(){
+  api('/api/fixed/export').then(r=>{
+    if(!r||!r.ok){toast((r&&r.error)||'导出失败',false);return;}
+    const payload = r.data;
+    const text = JSON.stringify(payload, null, 2);
+    const blob = new Blob([text], {type:'application/json;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const d = new Date();
+    const stamp = d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+    a.download = 'finance-calendar-'+stamp+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    toast('已导出 '+((payload.items||[]).length)+' 笔存单');
+  }).catch(()=>toast('导出失败',false));
+}
+
+function openFxImportModal(){
+  FX_IMPORT_DATA = null;
+  document.getElementById('fxImportFile').value = '';
+  document.getElementById('fxImportFileName').textContent = '点击选择文件';
+  document.getElementById('fxImportText').value = '';
+  document.getElementById('fxImportMode').value = 'append';
+  const ownerSel = document.getElementById('fxImportOwner');
+  ownerSel.innerHTML = FX_USERS.map(u=>`<option value="${u.id}">${esc(u.display_name||u.username)}</option>`).join('');
+  const adminU = FX_USERS.find(u=>u.role==='admin');
+  if(adminU) ownerSel.value = adminU.id;
+  document.getElementById('fxImportBtn').disabled = true;
+  document.getElementById('fxImportPreview').textContent = '尚未选择数据';
+  openModal('fxImportModal');
+}
+
+function parseFxImportPayload(text){
+  let obj;
+  try{ obj = JSON.parse(text); }catch(e){ return {error:'JSON 解析失败：'+e.message}; }
+  let items = null, app = '';
+  if(Array.isArray(obj)) items = obj;
+  else if(obj && typeof obj==='object'){
+    items = obj.items;
+    app = obj.app || '';
+  }
+  if(!Array.isArray(items)) return {error:'未找到 items 数组'};
+  if(app && app!=='finance-calendar') return {error:'文件 app 类型不符：'+app};
+  let valid = 0;
+  const bad = [];
+  items.forEach((it,i)=>{
+    const bank = it && (it.bankName||it.bank_name);
+    const sd = it && (it.saveDate||it.save_date);
+    const ed = it && (it.expireDate||it.expire_date);
+    const pr = it && Number(it.principal);
+    if(bank && sd && ed && pr>0) valid++; else bad.push(i+1);
+  });
+  if(!valid) return {error:'没有可导入的有效存单'};
+  return {items, valid, bad, total:items.length};
+}
+
+function onFxImportFile(){
+  const f = document.getElementById('fxImportFile').files[0];
+  if(!f) return;
+  document.getElementById('fxImportFileName').textContent = f.name;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    document.getElementById('fxImportText').value = e.target.result;
+    refreshFxImportPreview();
+  };
+  reader.readAsText(f, 'utf-8');
+}
+function onFxImportText(){ refreshFxImportPreview(); }
+
+function refreshFxImportPreview(){
+  const text = document.getElementById('fxImportText').value.trim();
+  const prev = document.getElementById('fxImportPreview');
+  const btn = document.getElementById('fxImportBtn');
+  if(!text){ prev.textContent='尚未选择数据'; btn.disabled=true; FX_IMPORT_DATA=null; return; }
+  const res = parseFxImportPayload(text);
+  if(res.error){ prev.innerHTML='<span style="color:#dc2626">'+esc(res.error)+'</span>'; btn.disabled=true; FX_IMPORT_DATA=null; return; }
+  FX_IMPORT_DATA = res.items;
+  let html = `识别到 <b>${res.total}</b> 条记录，其中 <b style="color:#16a34a">${res.valid}</b> 条有效`;
+  if(res.bad.length) html += `，<b style="color:#dc2626">${res.bad.length}</b> 条将跳过（第 ${res.bad.slice(0,10).join('、')} 条）`;
+  const mode = document.getElementById('fxImportMode').value;
+  if(mode==='replace') html += `<br><span style="color:#ea580c">覆盖模式：导入后将清空现有全部存单。</span>`;
+  prev.innerHTML = html;
+  btn.disabled = false;
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const m=document.getElementById('fxImportMode');
+  if(m) m.addEventListener('change',refreshFxImportPreview);
+});
+
+async function doFxImport(){
+  if(!FX_IMPORT_DATA || !FX_IMPORT_DATA.length){toast('请先选择有效的数据',false);return;}
+  const mode = document.getElementById('fxImportMode').value;
+  const owner = document.getElementById('fxImportOwner').value;
+  const doIt = async()=>{
+    const body = {data:{app:'finance-calendar',version:1,items:FX_IMPORT_DATA}, mode, owner_uid: owner?Number(owner):null};
+    const r = await api('/api/fixed/import',{method:'POST',body:JSON.stringify(body)});
+    if(r&&r.ok){
+      closeModal('fxImportModal');
+      toast(r.message||'导入完成');
+      loadFx();
+    }else{
+      toast((r&&r.error)||'导入失败',false);
+    }
+  };
+  if(mode==='replace'){
+    confirmModal('覆盖模式会先清空当前全部存单，再导入文件中的数据，此操作不可恢复。确定继续吗？', doIt,
+      {title:'覆盖导入',okText:'确认覆盖',danger:true});
+  }else{
+    doIt();
+  }
+}
+
+// ---------- 视图切换 ----------
+function switchFxView(v){
+  document.querySelectorAll('.fx-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.fx-view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('fxView-'+v).classList.add('active');
+  // 汇总大卡仅在日历/统计页显示，台账与设置页隐藏
+  const hero=document.querySelector('.fx-hero');
+  if(hero)hero.classList.toggle('fx-hero-hidden',v==='list'||v==='setting');
+  if(v==='cal')renderFxCal();
+}
+
+// 点击弹窗外关闭
+document.querySelectorAll('.modal-mask').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')});
+});
+
+// 任意弹窗打开时自动收起底部批量栏与浮动 + 按钮，关闭后按状态恢复，避免浮层重叠挡住弹窗按钮
+(function(){
+  const bar=document.getElementById('fxBatchBar');
+  let fab=document.getElementById('fxFab');
+  // 切页动画容器带 transform，会让 position:fixed 相对容器定位；移到 body 下以相对视口
+  if(fab)document.body.appendChild(fab);
+  const anyOpen=()=>[...document.querySelectorAll('.modal-mask')].some(m=>m.classList.contains('show'));
+  const sync=()=>{
+    const open=anyOpen();
+    if(bar)bar.classList.toggle('fx-bar-hidden',open);
+    // 弹窗打开 或 批量栏显示时隐藏浮动按钮，避免遮挡
+    if(fab)fab.classList.toggle('fx-fab-hidden',open||!!(bar&&bar.classList.contains('show')));
+  };
+  const obs=new MutationObserver(sync);
+  document.querySelectorAll('.modal-mask').forEach(m=>obs.observe(m,{attributes:true,attributeFilter:['class']}));
+  if(bar)obs.observe(bar,{attributes:true,attributeFilter:['class']});
+  sync();
+})();
+
+setNoticeUI();
+buildBankPicker();
+fxCalToday();
+loadFx();
+</script>
+{% endblock %}

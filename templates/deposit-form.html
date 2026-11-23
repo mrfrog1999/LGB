@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑存单' if edit_id else '新增存单' }} · 现金理财监控{% endblock %}
+
+{% block content %}
+<style>
+  .df-wrap{max-width:620px;margin:0 auto}
+  .df-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px}
+  .df-head{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .df-back{border:1px solid var(--border);background:var(--card);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);flex:0 0 auto;transition:.15s}
+  .df-back:hover{background:#f1f5f9;border-color:var(--brand)}
+  .df-back .ic{width:20px;height:20px}
+  .df-head h1{font-size:20px;font-weight:800;letter-spacing:-.4px}
+  .df-head p{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .df-form-field{margin-bottom:16px}
+  .df-form-field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+  .df-form-field input,.df-form-field select,.df-form-field textarea{width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:14px;color:var(--text);outline:none;background:var(--card);box-sizing:border-box}
+  .df-form-field input:focus,.df-form-field select:focus,.df-form-field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(239,68,68,.08)}
+  .df-form-field textarea{resize:vertical;min-height:64px}
+  .df-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .df-form-field{min-width:0}
+  .df-form-row input{min-width:0;width:100%;box-sizing:border-box}
+  /* 自定义日期控件：显示层文本简短可控，透明原生 date 控件覆盖整块用于唤起系统选择器 */
+  .df-date-ctrl{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:43px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--card);box-sizing:border-box;overflow:hidden;transition:.15s}
+  .df-date-ctrl:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px rgba(239,68,68,.08)}
+  .df-date-text{font-size:14px;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+  .df-date-text.ph{color:#9aa5b1}
+  .df-date-ic{width:18px;height:18px;color:var(--muted);flex:0 0 auto;pointer-events:none}
+  .df-date-ctrl input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+  .df-term-quick,.df-rate-quick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 16px}
+  .df-rate-quick{margin:2px 0 16px}
+  .df-term-quick .df-term-label,.df-rate-quick .df-term-label{font-size:12px;font-weight:700;color:var(--muted);margin-right:2px}
+  .df-term-quick button,.df-rate-quick button{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:6px 15px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s}
+  .df-term-quick button:hover,.df-rate-quick button:hover{border-color:var(--brand);color:var(--brand);background:#fef2f2}
+  .df-term-quick button.active,.df-rate-quick button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+  .df-calc-box{background:linear-gradient(135deg,#f8fafc,#fef2f2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;gap:8px;font-size:13px;margin:6px 0 18px;flex-wrap:wrap}
+  .df-calc-box>div{display:flex;flex-direction:column;gap:3px}
+  .df-calc-box .k{color:var(--muted);font-size:11.5px}
+  .df-calc-box b{color:var(--brand);font-size:15px;font-variant-numeric:tabular-nums}
+  .df-bank-picker{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-height:240px;overflow:auto;margin-top:8px}
+  .df-bank-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:11px;text-align:center;background:var(--card);transition:.15s}
+  .df-bank-opt:hover,.df-bank-opt.sel{border-color:var(--brand);background:#fef2f2}
+  .df-bank-opt img{width:28px;height:28px;object-fit:contain}
+  .df-bank-opt .fb-txt{background:#5b6b7f;color:#fff;border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+  .df-foot{display:flex;gap:10px;margin-top:6px}
+  .df-foot button{flex:1;padding:12px;font-size:14px;font-weight:700}
+  @media(max-width:560px){
+    .df-card{padding:18px 16px}
+    .df-form-row{grid-template-columns:1fr 1fr;gap:10px}
+    .df-form-row input{padding:10px 8px;font-size:13px}
+    .df-date-ctrl{padding:9px 9px;min-height:41px}
+    .df-date-text{font-size:12.5px}
+    .df-date-ic{width:16px;height:16px}
+    .df-bank-picker{grid-template-columns:repeat(4,1fr)}
+  }
+</style>
+
+<div class="df-wrap">
+  <div class="df-head">
+    <button class="df-back" onclick="goBack()" title="返回"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div>
+      <h1 id="dfTitle">{{ '编辑存单' if edit_id else '新增存单' }}</h1>
+      <p>填写定期存单信息，系统将按单利自动估算利息</p>
+    </div>
+  </div>
+
+  <div class="df-card">
+    <input type="hidden" id="f-dep-id">
+    <div class="df-form-field">
+      <label>归属成员</label>
+      <select id="f-dep-owner"></select>
+    </div>
+    <div class="df-form-field">
+      <label>银行</label>
+      <input type="text" id="f-dep-bankname" placeholder="点击下方可选，或直接输入银行名称" oninput="onBankNameInput()">
+      <div class="df-bank-picker" id="fxBankPicker"></div>
+    </div>
+    <div class="df-form-row">
+      <div class="df-form-field">
+        <label>存入日期</label>
+        <div class="df-date-ctrl" onclick="pickDate('f-dep-save')">
+          <span class="df-date-text ph" id="f-dep-save-text">请选择</span>
+          <svg class="df-date-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+          <input type="date" id="f-dep-save" onchange="onSaveDateChange()" tabindex="-1">
+        </div>
+      </div>
+      <div class="df-form-field">
+        <label>到期日期</label>
+        <div class="df-date-ctrl" onclick="pickDate('f-dep-expire')">
+          <span class="df-date-text ph" id="f-dep-expire-text">请选择</span>
+          <svg class="df-date-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+          <input type="date" id="f-dep-expire" onchange="onExpireDateChange()" tabindex="-1">
+        </div>
+      </div>
+    </div>
+    <div class="df-term-quick">
+      <span class="df-term-label">快捷存期</span>
+      <button type="button" data-months="3" onclick="applyDfTerm(3)">3个月</button>
+      <button type="button" data-months="6" onclick="applyDfTerm(6)">6个月</button>
+      <button type="button" data-months="12" onclick="applyDfTerm(12)">1年</button>
+      <button type="button" data-months="36" onclick="applyDfTerm(36)">3年</button>
+      <button type="button" data-months="60" onclick="applyDfTerm(60)">5年</button>
+    </div>
+    <div class="df-form-row">
+      <div class="df-form-field"><label>本金（元）</label><input type="number" id="f-dep-principal" step="0.01" placeholder="100000" oninput="calcDfPreview()"></div>
+      <div class="df-form-field"><label>年利率（%）</label><input type="number" id="f-dep-rate" step="0.0001" placeholder="2.25" oninput="onRateInput()"></div>
+    </div>
+    <div class="df-rate-quick">
+      <span class="df-term-label">快捷利率</span>
+      <button type="button" data-rate="1.11" onclick="applyDfRate(1.11)">1.11</button>
+      <button type="button" data-rate="1.25" onclick="applyDfRate(1.25)">1.25</button>
+      <button type="button" data-rate="1.35" onclick="applyDfRate(1.35)">1.35</button>
+      <button type="button" data-rate="1.55" onclick="applyDfRate(1.55)">1.55</button>
+      <button type="button" data-rate="1.65" onclick="applyDfRate(1.65)">1.65</button>
+      <button type="button" data-rate="1.75" onclick="applyDfRate(1.75)">1.75</button>
+      <button type="button" data-rate="1.85" onclick="applyDfRate(1.85)">1.85</button>
+    </div>
+    <div class="df-form-field"><label>备注（选填）</label><textarea id="f-dep-remark" placeholder="如：到期转存 / 存单存放位置"></textarea></div>
+    <div class="df-calc-box">
+      <div><span class="k">存期</span><b id="fxCalcTerm">—</b></div>
+      <div><span class="k">预估利息</span><b id="fxCalcInterest">—</b></div>
+      <div><span class="k">本息合计</span><b id="fxCalcTotal">—</b></div>
+    </div>
+    <div class="df-foot">
+      <button class="btn btn-ghost" onclick="goBack()">取消</button>
+      <button class="btn btn-primary" id="dfSaveBtn" onclick="saveDeposit()">保存存单</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ===== 独立存单表单页逻辑（自包含） =====
+const DF_EDIT_ID = {{ edit_id|tojson }};
+const DF_USERS = {{ users|tojson }};
+function df_esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// 银行库（与主页面一致）
+const DF_BANKS = [
+  {id:'icbc',name:'工商银行',short:'工行',logo:'/static/banks/icbc.png'},
+  {id:'ccb',name:'建设银行',short:'建行',logo:'/static/banks/ccb.png'},
+  {id:'abc',name:'农业银行',short:'农行',logo:'/static/banks/abc.png'},
+  {id:'boc',name:'中国银行',short:'中行',logo:'/static/banks/boc.png'},
+  {id:'bocom',name:'交通银行',short:'交行',logo:'/static/banks/bocom.png'},
+  {id:'psbc',name:'邮储银行',short:'邮储',logo:'/static/banks/psbc.png'},
+  {id:'cmb',name:'招商银行',short:'招商',logo:'/static/banks/cmb.png'},
+  {id:'citic',name:'中信银行',short:'中信',logo:'/static/banks/citic.png'},
+  {id:'spdb',name:'浦发银行',short:'浦发',logo:'/static/banks/spdb.png'},
+  {id:'bob',name:'北京银行',short:'北京',logo:'/static/banks/bob.png'},
+  {id:'cmbc',name:'民生银行',short:'民生'},
+  {id:'cib',name:'兴业银行',short:'兴业'},
+  {id:'ceb',name:'光大银行',short:'光大'},
+  {id:'pab',name:'平安银行',short:'平安'},
+  {id:'hxb',name:'华夏银行',short:'华夏'},
+  {id:'cgb',name:'广发银行',short:'广发'},
+  {id:'shb',name:'上海银行',short:'上海'},
+  {id:'nbcb',name:'宁波银行',short:'宁波'},
+  {id:'njcb',name:'南京银行',short:'南京'},
+  {id:'bohai',name:'渤海银行',short:'渤海'},
+  {id:'hfbank',name:'恒丰银行',short:'恒丰'},
+  {id:'czbank',name:'浙商银行',short:'浙商'},
+  {id:'jsbank',name:'江苏银行',short:'江苏'},
+  {id:'hsbank',name:'徽商银行',short:'徽商'},
+  {id:'webank',name:'微众银行',short:'微众'},
+  {id:'mybank',name:'网商银行',short:'网商'}
+];
+function dfBankByName(name){
+  if(!name) return null;
+  const s=String(name).trim();
+  let b=DF_BANKS.find(x=>x.name===s);
+  if(b) return b;
+  const core=s.replace(/银行|Bank|bank/g,'');
+  b=DF_BANKS.find(x=>x.name.replace(/银行/g,'').indexOf(core)>-1 && core);
+  return b||null;
+}
+function fxDaysBetween(a,b){const da=new Date(a+'T00:00:00'),db=new Date(b+'T00:00:00');return Math.round((db-da)/86400000);}
+function dfAddMonths(dateStr,months){const p=dateStr.split('-').map(Number);const base=new Date(p[0],p[1]-1+months,1);const last=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();base.setDate(Math.min(p[2],last));return dfFmtD(base);}
+function dfFmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dfTermMonths(start,end){
+  if(!start||!end) return 0;
+  const days=fxDaysBetween(start,end);
+  if(days<=0) return 0;
+  const a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00');
+  let months=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+  if(months<0) return 0;
+  if(dfAddMonths(start,months)===end) return months;
+  if(months>0&&dfAddMonths(start,months-1)===end) return months-1;
+  if(b.getDate()<a.getDate()) months-=1;
+  if(months<0) months=0;
+  const rest=Math.max(0,fxDaysBetween(dfAddMonths(start,months),end));
+  return months+Math.min(rest,30)/30;
+}
+function dfCalc(principal,rate,months){
+  const p=Number(principal)||0,r=Number(rate)||0,m=Number(months)||0;
+  if(p<=0||r<=0||m<=0) return {interest:0,total:p};
+  const interest=Math.round(p*(r/100)*(m/12)*100)/100;
+  return {interest,total:Math.round((p+interest)*100)/100};
+}
+function dfFormatTerm(m){
+  if(!m||m<=0) return '—';
+  const whole=Math.floor(m+1e-9), rem=Math.round((m-whole)*30);
+  const y=Math.floor(whole/12), mo=whole%12;
+  let t=''; if(y)t+=y+'年'; if(mo)t+=mo+'个月';
+  if(!t)t=rem>0?rem+'天':'不足1月'; else if(rem>0)t+=rem+'天';
+  return t;
+}
+function dfMoney(n){return '¥'+(Number(n)||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function buildBankPicker(){
+  // 快捷图标只展示带 logo 的银行；无 logo 的银行仍可在上方输入框手动填写
+  const withLogo=DF_BANKS.filter(b=>b.logo);
+  document.getElementById('fxBankPicker').innerHTML=withLogo.map(b=>`
+    <div class="df-bank-opt" data-bank="${df_esc(b.name)}" onclick="pickDfBank('${df_esc(b.name)}')">
+      <img src="${b.logo}" alt="">
+      <span>${df_esc(b.short)}</span>
+    </div>`).join('');
+}
+function pickDfBank(name){
+  document.getElementById('f-dep-bankname').value=name;
+  document.querySelectorAll('.df-bank-opt').forEach(o=>o.classList.toggle('sel',o.dataset.bank===name));
+}
+function onBankNameInput(){
+  document.querySelectorAll('.df-bank-opt').forEach(o=>o.classList.toggle('sel',o.dataset.bank===document.getElementById('f-dep-bankname').value.trim()));
+}
+// 当前选中的快捷存期（月），null 表示未选/手动改过到期日
+let DF_TERM_MONTHS=null;
+function syncTermBtns(){
+  document.querySelectorAll('.df-term-quick button').forEach(b=>{
+    b.classList.toggle('active',Number(b.dataset.months)===DF_TERM_MONTHS);
+  });
+}
+function syncRateBtns(){
+  const cur=document.getElementById('f-dep-rate').value.trim();
+  document.querySelectorAll('.df-rate-quick button').forEach(b=>{
+    b.classList.toggle('active',cur!==''&&Number(cur)===Number(b.dataset.rate));
+  });
+}
+function applyDfRate(rate){
+  document.getElementById('f-dep-rate').value=rate;
+  syncRateBtns();
+  calcDfPreview();
+}
+function onRateInput(){
+  calcDfPreview();
+}
+function applyDfTerm(months){
+  const sd=document.getElementById('f-dep-save').value||todayStr();
+  // 若存入日为空则先填今天，保证能算出到期日
+  if(!document.getElementById('f-dep-save').value)document.getElementById('f-dep-save').value=sd;
+  document.getElementById('f-dep-expire').value=dfAddMonths(sd,months);
+  DF_TERM_MONTHS=months;
+  syncTermBtns();
+  calcDfPreview();
+}
+function onSaveDateChange(){
+  // 若已选快捷存期，改存入日后自动重算到期日
+  if(DF_TERM_MONTHS){
+    const sd=document.getElementById('f-dep-save').value;
+    if(sd)document.getElementById('f-dep-expire').value=dfAddMonths(sd,DF_TERM_MONTHS);
+  }
+  calcDfPreview();
+}
+function onExpireDateChange(){
+  // 手动改到期日：取消快捷存期高亮，以手动日期为准
+  DF_TERM_MONTHS=null;
+  syncTermBtns();
+  calcDfPreview();
+}
+// 点击自定义日期控件：唤起原生 date 选择器
+function pickDate(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  try{ if(typeof el.showPicker==='function'){ el.showPicker(); return; } }catch(e){}
+  try{ el.focus(); el.click(); }catch(e){}
+}
+// 把 date 值格式化成简短文本（2026-11-23），避免真机原生中文长格式撑破窄列
+function syncDateText(inputId,textId){
+  const v=document.getElementById(inputId).value;
+  const t=document.getElementById(textId);
+  if(v){ t.textContent=v.replace(/-/g,'-'); t.classList.remove('ph'); }
+  else { t.textContent='请选择'; t.classList.add('ph'); }
+}
+function calcDfPreview(){
+  syncRateBtns();
+  syncDateText('f-dep-save','f-dep-save-text');
+  syncDateText('f-dep-expire','f-dep-expire-text');
+  const sd=document.getElementById('f-dep-save').value;
+  const ed=document.getElementById('f-dep-expire').value;
+  const p=document.getElementById('f-dep-principal').value;
+  const r=document.getElementById('f-dep-rate').value;
+  if(sd&&ed){
+    const m=dfTermMonths(sd,ed);
+    const c=dfCalc(p,r,m);
+    document.getElementById('fxCalcTerm').textContent=dfFormatTerm(m);
+    document.getElementById('fxCalcInterest').textContent=dfMoney(c.interest);
+    document.getElementById('fxCalcTotal').textContent=dfMoney(c.total);
+  }else{
+    document.getElementById('fxCalcTerm').textContent='—';
+    document.getElementById('fxCalcInterest').textContent='—';
+    document.getElementById('fxCalcTotal').textContent='—';
+  }
+}
+function goBack(){location.href='/fixed';}
+
+async function initForm(){
+  const ownerSel=document.getElementById('f-dep-owner');
+  ownerSel.innerHTML=DF_USERS.map(u=>`<option value="${u.id}">${df_esc(u.display_name||u.username)}</option>`).join('');
+  buildBankPicker();
+  if(DF_EDIT_ID){
+    // 编辑模式：拉取存单列表，找到对应项填充
+    const r=await api('/api/fixed/deposits');
+    const d=r&&r.ok?(r.list||[]).find(x=>String(x.id)===String(DF_EDIT_ID)):null;
+    if(!d){toast('未找到该存单',false);setTimeout(goBack,1200);return;}
+    ownerSel.value=d.owner_uid||'';
+    document.getElementById('f-dep-bankname').value=d.bank_name||'';
+    document.getElementById('f-dep-save').value=d.save_date||'';
+    document.getElementById('f-dep-expire').value=d.expire_date||'';
+    document.getElementById('f-dep-principal').value=d.principal||'';
+    document.getElementById('f-dep-rate').value=d.rate_percent||'';
+    document.getElementById('f-dep-remark').value=d.remark||'';
+    pickDfBank(d.bank_name||'');
+  }else{
+    ownerSel.value=DF_USERS[0]?DF_USERS[0].id:'';
+    // 新增模式：存入日期默认今天
+    document.getElementById('f-dep-save').value=todayStr();
+  }
+  syncTermBtns();
+  calcDfPreview();
+}
+
+async function saveDeposit(){
+  const id=DF_EDIT_ID||'';
+  const bankName=document.getElementById('f-dep-bankname').value.trim();
+  const saveDate=document.getElementById('f-dep-save').value;
+  const expireDate=document.getElementById('f-dep-expire').value;
+  const principal=document.getElementById('f-dep-principal').value;
+  const rate=document.getElementById('f-dep-rate').value;
+  const owner=document.getElementById('f-dep-owner').value;
+  if(!bankName||!saveDate||!expireDate||!principal){toast('请填写银行、存入/到期日期和本金',false);return;}
+  if(fxDaysBetween(saveDate,expireDate)<=0){toast('到期日期必须晚于存入日期',false);return;}
+  const b=dfBankByName(bankName);
+  const body={owner_uid:owner?Number(owner):null,bank_id:b?b.id:'',bank_name:bankName,
+    save_date:saveDate,expire_date:expireDate,principal:Number(principal),
+    rate_percent:Number(rate)||0,remark:document.getElementById('f-dep-remark').value.trim()};
+  const url=id?'/api/fixed/deposits/'+id:'/api/fixed/deposits';
+  const btn=document.getElementById('dfSaveBtn');btn.disabled=true;btn.textContent='保存中…';
+  const r=await api(url,{method:'POST',body:JSON.stringify(body)});
+  if(r&&r.ok){toast(id?'已保存修改':'存单已添加');setTimeout(goBack,400);}
+  else{toast((r&&r.error)||'保存失败',false);btn.disabled=false;btn.textContent='保存存单';}
+}
+
+initForm();
+</script>
+{% endblock %}

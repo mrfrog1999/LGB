@@ -78,7 +78,7 @@
     .up{color:var(--up)} .down{color:var(--down)}
     /* 弹窗 */
     .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);
-      -webkit-backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+      -webkit-backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:110;padding:20px}
     .modal-mask.show{display:flex;animation:fadeIn .2s ease}
     .modal{background:#fff;border-radius:20px;width:100%;max-width:520px;max-height:88vh;overflow:auto;
       box-shadow:0 24px 70px rgba(15,23,42,.28);animation:modalUp .25s cubic-bezier(.2,.8,.2,1)}
@@ -99,7 +99,7 @@
     .form-row input:focus,.form-row select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
     .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7}
     /* toast */
-    #toast{position:fixed;top:82px;right:24px;z-index:100;display:flex;flex-direction:column;gap:10px}
+    #toast{position:fixed;top:82px;right:24px;z-index:120;display:flex;flex-direction:column;gap:10px}
     .toast-item{padding:13px 18px;border-radius:12px;background:#fff;border:1px solid var(--border);
       box-shadow:var(--shadow-hover);min-width:220px;font-size:14px;font-weight:500;animation:slideIn .25s ease}
     .toast-item.ok{border-left:4px solid var(--down)}
@@ -128,6 +128,79 @@
     .prod-item:hover{background:#f6f8fc}
     .prod-item.selected{background:#fef2f2;box-shadow:inset 3px 0 0 var(--brand)}
     .prod-empty{padding:18px;text-align:center;font-size:13px;color:var(--muted)}
+
+    /* ===== 移动端底部 Tab 栏（iOS 液态玻璃） ===== */
+    .bottom-tabbar{display:none}
+    @media (max-width:900px){
+      /* 隐藏顶部导航，改用底部 tab */
+      .topbar .nav{display:none}
+      .bottom-tabbar{
+        display:block;position:fixed;left:0;right:0;bottom:0;z-index:60;
+        padding:0 12px calc(10px + env(safe-area-inset-bottom));
+        pointer-events:none;
+        /* 不透明底：从 tab 栏到屏幕底部完全遮住页面内容，杜绝透漏 */
+        background:#f4f6fb;
+        box-shadow:0 -1px 0 rgba(233,237,244,.9);
+      }
+      /* 底部向上的渐变透背：内容滚到 tab 后面时渐渐隐入背景，玻璃效果更干净 */
+      .bottom-tabbar::before{
+        content:'';position:absolute;left:0;right:0;bottom:calc(100% - 14px);height:92px;
+        pointer-events:none;z-index:-1;
+        background:linear-gradient(to top,
+          rgba(244,246,251,.98) 0%,
+          rgba(244,246,251,.92) 38%,
+          rgba(244,246,251,.55) 70%,
+          rgba(244,246,251,0) 100%);
+      }
+      .bt-glass{
+        pointer-events:auto;position:relative;margin:0 auto;max-width:520px;
+        display:flex;gap:2px;padding:7px;
+        border-radius:999px;
+        background:rgba(255,255,255,.68);
+        -webkit-backdrop-filter:blur(24px) saturate(200%);
+        backdrop-filter:blur(24px) saturate(200%);
+        border:1px solid rgba(255,255,255,.75);
+        box-shadow:0 8px 32px rgba(16,24,40,.14),0 1px 0 rgba(255,255,255,.9) inset,
+                   0 -1px 0 rgba(255,255,255,.35) inset;
+      }
+      /* 顶部高光描边，模拟玻璃边缘折射 */
+      .bt-glass::before{
+        content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+        background:linear-gradient(180deg,rgba(255,255,255,.65),rgba(255,255,255,0) 45%);
+        mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);
+        -webkit-mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);
+        -webkit-mask-composite:xor;mask-composite:exclude;padding:1px;
+      }
+      .bt-item{
+        flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:3px;padding:7px 2px 5px;border-radius:999px;color:var(--muted);
+        font-size:10.5px;font-weight:600;line-height:1.1;position:relative;z-index:1;
+        transition:color .25s;
+      }
+      .bt-item svg{width:22px;height:22px;stroke-width:2;transition:transform .28s cubic-bezier(.2,.9,.25,1.4)}
+      /* 滑动的红色玻璃胶囊：跟随选中项平滑移动 */
+      .bt-slider{
+        position:absolute;top:2px;bottom:2px;left:6px;width:0;z-index:0;border-radius:999px;pointer-events:none;
+        background:linear-gradient(135deg,rgba(239,68,68,.17),rgba(251,113,55,.12));
+        box-shadow:0 2px 10px rgba(239,68,68,.14),0 1px 0 rgba(255,255,255,.85) inset;
+        transition:left .38s cubic-bezier(.22,.9,.25,1),width .38s cubic-bezier(.22,.9,.25,1);
+      }
+      .bt-item.active{color:var(--brand)}
+      .bt-item.active svg{transform:translateY(-2px) scale(1.1)}
+      /* 点击瞬间图标回弹 + 文字微缩放 */
+      .bt-item.bt-tap svg{animation:btPop .42s cubic-bezier(.2,.9,.25,1.4)}
+      .bt-item.bt-tap span{animation:btText .42s ease}
+      @keyframes btPop{0%{transform:translateY(-2px) scale(1.1)}35%{transform:translateY(-5px) scale(1.28)}100%{transform:translateY(-2px) scale(1.1)}}
+      @keyframes btText{0%{transform:scale(1)}40%{transform:scale(1.1)}100%{transform:scale(1)}}
+      /* 弹窗打开时隐藏底部 tab，避免遮挡弹窗内容/按钮 */
+      .bottom-tabbar.bt-hidden{opacity:0;transform:translateY(120%);pointer-events:none;transition:opacity .22s ease,transform .3s cubic-bezier(.4,0,.2,1)}
+      /* 页面内容给底部 tab 留出空间 + 进入/退出丝滑转场 */
+      .container{padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important}
+      .container.bt-page-enter{animation:btPageIn .42s cubic-bezier(.22,.75,.3,1) both}
+      .container.bt-page-leave{animation:btPageOut .26s cubic-bezier(.4,0,1,1) both}
+      @keyframes btPageIn{from{opacity:0;transform:translateY(14px) scale(.995)}to{opacity:1;transform:none}}
+      @keyframes btPageOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-10px) scale(.99)}}
+    }
     @media (max-width:900px){
       .topbar{padding:8px 14px;height:auto;min-height:54px;flex-wrap:wrap;gap:6px;
         padding-top:calc(8px + env(safe-area-inset-top))}
@@ -198,7 +271,9 @@
     <div class="logo"><span class="dot"><img src="/static/logo.png" alt="logo"></span>现金理财监控<span class="ver-tag">{{ app_version }}</span></div>
     <div style="display:flex;align-items:center;gap:12px;">
       <div class="nav">
-        <a href="/" class="{% if request.path=='/' %}active{% endif %}">总览</a>
+        <a href="/" class="{% if request.path=='/' %}active{% endif %}">理财</a>
+        <a href="/withdrawals" class="{% if request.path=='/withdrawals' %}active{% endif %}">记录</a>
+        <a href="/fixed" class="{% if request.path=='/fixed' %}active{% endif %}">定期监控</a>
         {% if is_admin %}<a href="/settings" class="{% if request.path=='/settings' %}active{% endif %}">设置</a>{% endif %}
       </div>
       {% if current_user %}
@@ -214,6 +289,25 @@
     </div>
   </div>
   <div class="container">{% block content %}{% endblock %}</div>
+
+  <!-- 移动端底部 Tab 栏（iOS 液态玻璃） -->
+  <nav class="bottom-tabbar">
+    <div class="bt-glass">
+      <span class="bt-slider" id="btSlider"></span>
+      <a href="/" class="bt-item {% if request.path=='/' %}active{% endif %}">
+        <svg class="ic"><use href="#i-wallet"/></svg><span>理财</span>
+      </a>
+      <a href="/withdrawals" class="bt-item {% if request.path=='/withdrawals' %}active{% endif %}">
+        <svg class="ic"><use href="#i-clipboard"/></svg><span>记录</span>
+      </a>
+      <a href="/fixed" class="bt-item {% if request.path=='/fixed' %}active{% endif %}">
+        <svg class="ic"><use href="#i-clock"/></svg><span>定期监控</span>
+      </a>
+      {% if is_admin %}<a href="/settings" class="bt-item {% if request.path=='/settings' %}active{% endif %}">
+        <svg class="ic"><use href="#i-settings"/></svg><span>设置</span>
+      </a>{% endif %}
+    </div>
+  </nav>
 
   <div id="toast"></div>
 
@@ -307,6 +401,60 @@
     ['gesturestart','gesturechange','gestureend'].forEach(ev=>{
       document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
     });
+
+    // ===== 底部 Tab 丝滑切换动画 =====
+    (function(){
+      const bar=document.querySelector('.bottom-tabbar');
+      if(!bar) return;
+      const slider=document.getElementById('btSlider');
+      const items=[...bar.querySelectorAll('.bt-item')];
+      const container=document.querySelector('.container');
+      if(getComputedStyle(bar).display==='none') return; // 桌面端不启用
+
+      // 把滑块定位到指定项（无动画瞬间定位）
+      function placeSlider(el,animate){
+        if(!el||!slider) return;
+        if(!animate) slider.style.transition='none';
+        slider.style.left=el.offsetLeft+'px';
+        slider.style.width=el.offsetWidth+'px';
+        if(!animate){ slider.offsetHeight; slider.style.transition=''; }
+      }
+      const activeEl=items.find(a=>a.classList.contains('active'));
+      // 初始定位 + 入场动画
+      requestAnimationFrame(()=>{
+        placeSlider(activeEl,false);
+        if(container) container.classList.add('bt-page-enter');
+      });
+      // 视口变化时重新定位
+      window.addEventListener('resize',()=>placeSlider(items.find(a=>a.classList.contains('active')),false));
+
+      items.forEach(a=>{
+        a.addEventListener('click',function(e){
+          if(this.classList.contains('active')) return; // 当前页不重复跳转
+          const href=this.getAttribute('href');
+          if(!href) return;
+          e.preventDefault();
+          // 图标回弹 + 滑块滑到目标
+          this.classList.add('bt-tap');
+          placeSlider(this,true);
+          // 登录态靠 session cookie 保持，页面直接跳转即可（sharecode 由各页 API 层兜底）
+          // 页面淡出后跳转
+          if(container) container.classList.add('bt-page-leave');
+          setTimeout(()=>{location.href=href;},240);
+        });
+      });
+
+      // 任意弹窗打开时隐藏底部 tab，关闭后恢复，避免遮挡弹窗内容与按钮
+      // 监听 body 子树，兼容部分页面在脚本运行后才替换/插入弹窗 DOM 的情况
+      const anyModalOpen=()=>[...document.querySelectorAll('.modal-mask')].some(m=>m.classList.contains('show'));
+      const syncTab=()=>{
+        const hide=anyModalOpen();
+        if(bar.classList.contains('bt-hidden')!==hide) bar.classList.toggle('bt-hidden',hide);
+      };
+      const modalObs=new MutationObserver(syncTab);
+      modalObs.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+      syncTab();
+    })();
   </script>
   {% block scripts %}{% endblock %}
 </body>

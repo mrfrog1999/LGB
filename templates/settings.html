@@ -81,6 +81,23 @@
   .u-actions button:hover{background:#e8ecf4;color:var(--text)}
   .u-actions button.del:hover{background:#fee2e2;color:#dc2626}
   .u-actions svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  /* ===== 登录历史 ===== */
+  .lh-list{max-height:430px;overflow:auto}
+  .lh-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)}
+  .lh-row:last-child{border-bottom:none}
+  .lh-avatar{width:32px;height:32px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;
+    justify-content:center;font-weight:800;font-size:12px;color:#fff;background:linear-gradient(135deg,#fb7137,#ef4444)}
+  .lh-avatar.member{background:linear-gradient(135deg,#94a3b8,#64748b)}
+  .lh-main{flex:1;min-width:0}
+  .lh-main b{font-size:13px;display:block;line-height:1.4}
+  .lh-main .lh-sub{font-size:11px;color:var(--muted);line-height:1.6}
+  .lh-main .lh-sub .ip{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .lh-time{font-size:11px;color:var(--muted);white-space:nowrap;text-align:right;line-height:1.5}
+  .lh-time b{display:block;color:#475569;font-weight:600;font-size:11.5px}
+  @media(max-width:560px){
+    .lh-row{flex-wrap:wrap}
+    .lh-time{width:100%;text-align:left;padding-left:42px;margin-top:-4px}
+  }
 </style>
 {% endblock %}
 
@@ -103,6 +120,17 @@
         <button class="btn btn-primary" onclick="openUserModal()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-plus"/></svg>新增账号</button>
         <button class="btn btn-ghost" onclick="openPwdModal()"><svg class="ic" style="width:15px;height:15px;vertical-align:-2px"><use href="#i-edit"/></svg>修改我的密码</button>
       </div>
+    </div>
+  <div class="card">
+      <div class="sec-head">
+        <span class="sec-ico teal"><svg class="ic" style="width:18px;height:18px"><use href="#i-clock"/></svg></span>
+        <h2>登录记录</h2>
+        <button class="btn btn-ghost" style="margin-left:auto;padding:6px 11px;font-size:11px;" onclick="clearLoginHistory()" title="清空登录记录">
+          <svg class="ic" style="width:13px;height:13px;vertical-align:-2px"><use href="#i-trash"/></svg>清空
+        </button>
+      </div>
+      <div class="sec-desc">记录每次成功登录的账号、时间、IP 与设备，最多保留最近 200 条。登录态 30 天内有效，关闭浏览器也无需重复登录。</div>
+      <div id="loginHistoryList" class="lh-list"><div class="muted" style="font-size:12px;">加载中…</div></div>
     </div>
   {% endif %}
   <div class="card">
@@ -663,9 +691,51 @@ async function doImport(){
     if(btn){btn.disabled=false;btn.innerHTML='<svg class="ic"><use href="#i-import"/></svg> 确认导入';}
   }
 }
+/* ===== 登录历史 ===== */
+function parseUA(ua){
+  ua=ua||'';
+  if(/iPhone|iPad|iOS/i.test(ua))return 'iOS 设备';
+  if(/Android/i.test(ua))return 'Android 设备';
+  if(/Mac OS X/i.test(ua))return 'Mac 电脑';
+  if(/Windows/i.test(ua))return 'Windows 电脑';
+  if(/Linux/i.test(ua))return 'Linux 设备';
+  return ua?ua.slice(0,24):'未知设备';
+}
+async function loadLoginHistory(){
+  const box=document.getElementById('loginHistoryList');
+  if(!box)return;
+  try{
+    const r=await api('/api/login-history');
+    if(!r.ok){box.innerHTML='<div class="muted" style="font-size:12px;">登录记录加载失败</div>';return;}
+    const items=r.items||[];
+    if(!items.length){box.innerHTML='<div class="muted" style="font-size:12px;padding:14px 4px;">暂无登录记录</div>';return;}
+    box.innerHTML=items.map(it=>{
+      const name=it.display_name||it.username||'未知账号';
+      const initial=esc(name.slice(0,1).toUpperCase());
+      const av='<span class="lh-avatar '+(it.role==='admin'?'':'member')+'">'+initial+'</span>';
+      const roleTag='<span class="role-tag '+esc(it.role)+'">'+(it.role==='admin'?'管理员':'成员')+'</span>';
+      const sub='<div class="lh-sub">'+esc(it.username||'')+' · '+roleTag+
+        (it.ip?' · IP <span class="ip">'+esc(it.ip)+'</span>':'')+
+        (it.user_agent?' · '+esc(parseUA(it.user_agent)):'')+'</div>';
+      return '<div class="lh-row">'+av+
+        '<div class="lh-main"><b>'+esc(name)+'</b>'+sub+'</div>'+
+        '<div class="lh-time"><b>'+esc((it.login_at||'').slice(0,10))+'</b>'+esc((it.login_at||'').slice(11))+'</div>'+
+        '</div>';
+    }).join('');
+  }catch(e){box.innerHTML='<div class="muted" style="font-size:12px;">登录记录加载失败</div>';}
+}
+function clearLoginHistory(){
+  confirmModal('确定清空全部登录记录吗？此操作不可恢复。',async()=>{
+    try{
+      const r=await api('/api/login-history/clear',{method:'POST',body:'{}'});
+      if(r.ok){toast('登录记录已清空');loadLoginHistory();}
+      else toast(r.error||'清空失败',false);
+    }catch(e){toast('清空失败：'+e.message,false);}
+  },{title:'清空登录记录',okText:'清空',danger:true});
+}
 document.addEventListener('DOMContentLoaded',function(){
   applyReadonly();
-  if(typeof IS_ADMIN!=='undefined'&&IS_ADMIN){loadBackupStat();loadUsersInit();}
+  if(typeof IS_ADMIN!=='undefined'&&IS_ADMIN){loadBackupStat();loadUsersInit();loadLoginHistory();}
 });
 
 async function saveSettings(){

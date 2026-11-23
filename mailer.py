@@ -450,3 +450,134 @@ def test_connection():
         return True, "连接成功"
     except Exception as e:
         return False, str(e)
+
+
+# ---------------- 定期存款到期提醒（定期监控）----------------
+def send_raw_mail(subject, html, to=None):
+    """发送任意主题的 HTML 邮件（定期监控到期提醒用），返回 (ok, msg)。"""
+    return _smtp_send(subject, html, override_to=to)
+
+
+def _fmt_deposit_term(months):
+    """把存期月数格式化成「1年 / 3个月」这样的简短文本。"""
+    try:
+        m = int(months)
+    except (TypeError, ValueError):
+        return ""
+    if not m:
+        return ""
+    if m % 12 == 0:
+        return f"{m // 12}年"
+    return f"{m}个月"
+
+
+def build_fixed_notice_html(due_today, due_tomorrow):
+    """构造定期存款到期提醒正文（含完整存单明细）。due_today/due_tomorrow 为存单 dict 列表。"""
+    def _num(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _rate(v):
+        n = _num(v)
+        return f"{n:g}" if n else "—"
+
+    def cards(items, accent, soft_bg):
+        """每笔存单渲染成一张明细卡，字段与台账一致，适配手机窄屏。"""
+        total_p = 0.0
+        total_i = 0.0
+        out = []
+        for d in items:
+            p = _num(d.get("principal"))
+            i = _num(d.get("interest"))
+            total_p += p
+            total_i += i
+            who = (d.get("owner_name") or "").strip()
+            who_html = (
+                f'<span style="font-weight:500;color:#64748b;font-size:11.5px;">　{who}</span>'
+                if who else ""
+            )
+            term = _fmt_deposit_term(d.get("term_months"))
+            meta = (
+                f'存入 {d.get("save_date", "") or "—"}　·　到期 {d.get("expire_date", "") or "—"}'
+                + (f'　·　存期 {term}' if term else "")
+            )
+            money = (
+                f'年利率 {_rate(d.get("rate_percent"))}%　·　预估利息 ¥{i:,.2f}'
+            )
+            remark = (d.get("remark") or "").strip()
+            remark_html = (
+                f'<div style="font-size:11px;color:#94a3b8;margin-top:5px;">备注：{remark}</div>'
+                if remark else ""
+            )
+            out.append(
+                f'<div style="border:1px solid #eef1f6;border-radius:9px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+                f'<div style="font-size:13.5px;font-weight:700;color:#1e293b;">{d.get("bank_name", "")}{who_html}</div>'
+                f'<div style="font-size:14px;font-weight:800;color:{accent};white-space:nowrap;">¥{p:,.2f}</div>'
+                f'</div>'
+                f'<div style="font-size:11.5px;color:#64748b;margin-top:7px;line-height:1.7;">{meta}<br>{money}</div>'
+                f'{remark_html}'
+                f'</div>'
+            )
+        return "".join(out), total_p, total_i
+
+    today_cards, today_p, today_i = cards(due_today, "#dc2626", "#fef2f2")
+    tomorrow_cards, tomorrow_p, tomorrow_i = cards(due_tomorrow, "#ea580c", "#fff7ed")
+
+    table = (
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
+        'max-width:560px;margin:0 auto;color:#1e293b;">'
+        '<div style="background:linear-gradient(135deg,#ef4444,#fb7137);border-radius:14px 14px 0 0;'
+        'padding:20px 22px;color:#fff;font-size:19px;font-weight:800;">定期存款到期提醒</div>'
+        '<div style="background:#fff;border:1px solid #e9edf4;border-top:none;border-radius:0 0 14px 14px;padding:18px 22px;">'
+    )
+    if due_today:
+        table += (
+            '<div style="font-size:15px;font-weight:700;color:#dc2626;margin:6px 0 4px;">🔴 到期当天 · '
+            f'{len(due_today)} 笔</div>'
+            f'<div style="font-size:12px;color:#991b1b;margin:0 0 10px;">本金合计 ¥{today_p:,.2f}　·　预估利息 ¥{today_i:,.2f}</div>'
+            '<div style="font-size:12px;color:#991b1b;margin:-4px 0 10px;">以下存单今天到期，请及时办理支取或转存。</div>'
+            + today_cards
+        )
+    if due_tomorrow:
+        table += (
+            '<div style="font-size:15px;font-weight:700;color:#ea580c;margin:16px 0 4px;">🟠 到期前一天 · '
+            f'{len(due_tomorrow)} 笔</div>'
+            f'<div style="font-size:12px;color:#9a3412;margin:0 0 10px;">本金合计 ¥{tomorrow_p:,.2f}　·　预估利息 ¥{tomorrow_i:,.2f}</div>'
+            '<div style="font-size:12px;color:#9a3412;margin:-4px 0 10px;">以下存单明天到期，请提前做好安排。</div>'
+            + tomorrow_cards
+        )
+    if not due_today and not due_tomorrow:
+        table += '<div style="font-size:14px;color:#64748b;padding:12px 0;">到期当天与前一天均没有到期的定期存款。</div>'
+    table += ('<div style="font-size:11px;color:#94a3b8;margin-top:16px;border-top:1px solid #eef1f6;'
+              'padding-top:12px;line-height:1.7;">每笔存单会在<b>到期前一天</b>与<b>到期当天</b>各提醒一次。<br>'
+              '来自 现金理财监控 · 定期监控</div></div></div>')
+    return table
+
+
+def send_fixed_notice():
+    """每日定时检查存单，在到期前一天与到期当天各发一次提醒邮件（同一天只发一次）。返回 (ok, msg)。"""
+    from datetime import datetime as _dt, timedelta as _td
+    s = db.get_settings()
+    if s.get("fixed_notice_enabled", "0") != "1":
+        return True, "定期提醒未开启，跳过"
+    today = _dt.now().date()
+    last = s.get("fixed_notice_last_date", "")
+    if last == today.isoformat():
+        return True, "今日已发送，跳过"
+    # due_today：到期日=今天，即「到期当天」；due_tomorrow：到期日=明天，即「到期前一天」
+    due_today = db.fixed_deposits_expiring_on([today.isoformat()])
+    tomorrow = (today + _td(days=1)).isoformat()
+    due_tomorrow = db.fixed_deposits_expiring_on([tomorrow])
+    # 无到期存单时不发，避免每天骚扰
+    if not due_today and not due_tomorrow:
+        return True, "到期当天与前一天均无到期存单，跳过"
+    subject = f"定期存款到期提醒 · 到期当天 {len(due_today)} 笔 / 到期前一天 {len(due_tomorrow)} 笔"
+    html = build_fixed_notice_html(due_today, due_tomorrow)
+    to = (s.get("fixed_notice_email") or "").strip() or (s.get("mail_to") or "").strip()
+    ok, msg = _smtp_send(subject, html, override_to=to or None)
+    if ok:
+        db.set_settings({"fixed_notice_last_date": today.isoformat()})
+    return ok, msg

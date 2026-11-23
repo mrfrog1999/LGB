@@ -3,7 +3,7 @@ import logging
 import hmac
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from functools import wraps
 
@@ -20,6 +20,8 @@ logger = logging.getLogger("app")
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+# 持久登录：设置会话有效期，登录时 session.permanent=True 后 cookie 会带上 Max-Age/Expires
+app.permanent_session_lifetime = timedelta(days=config.SESSION_LIFETIME_DAYS)
 
 
 # ---------------- 登录认证与权限 ----------------
@@ -203,12 +205,26 @@ def backup_job():
         logger.error(f"自动备份任务异常: {e}")
 
 
+def fixed_notice_job():
+    """每日定时：检查今明两日到期存单并发提醒邮件（开关与去重在 mailer 内）。"""
+    try:
+        ok, msg = mailer.send_fixed_notice()
+        logger.info(f"定期到期提醒: {msg}")
+    except Exception as e:
+        logger.error(f"定期到期提醒任务异常: {e}")
+
+
 def setup_scheduler():
     s = db.get_settings()
     hour = int(s.get("push_hour") or config.DEFAULT_PUSH_HOUR)
     minute = int(s.get("push_minute") or config.DEFAULT_PUSH_MINUTE)
     backup_hour = int(s.get("backup_hour") or config.DEFAULT_BACKUP_HOUR)
     backup_minute = int(s.get("backup_minute") or config.DEFAULT_BACKUP_MINUTE)
+    notice_time = (s.get("fixed_notice_time") or "09:00").strip()
+    try:
+        notice_hour, notice_minute = (int(x) for x in notice_time.split(":"))
+    except (ValueError, TypeError):
+        notice_hour, notice_minute = 9, 0
     fetch_times = db.get_fetch_times()
     scheduler.remove_all_jobs()
     # 主任务：每天指定时间更新数据 + 邮件推送
@@ -227,10 +243,17 @@ def setup_scheduler():
         hour=backup_hour, minute=backup_minute,
         id="daily_backup", replace_existing=True,
     )
+    # 定期到期提醒：每天指定时间检查（开关在任务内部判断）
+    scheduler.add_job(
+        fixed_notice_job, "cron",
+        hour=notice_hour, minute=notice_minute,
+        id="fixed_notice", replace_existing=True,
+    )
     logger.info(
         f"定时任务已设置: 主任务每天 {hour:02d}:{minute:02d}，"
         f"自动抓取时间点 {fetch_times}，"
-        f"自动备份每天 {backup_hour:02d}:{backup_minute:02d}"
+        f"自动备份每天 {backup_hour:02d}:{backup_minute:02d}，"
+        f"定期到期提醒每天 {notice_hour:02d}:{notice_minute:02d}"
     )
 
 
@@ -292,6 +315,31 @@ def settings_page():
     return render_template("settings.html", settings=s)
 
 
+@app.route("/fixed")
+def fixed_page():
+    """定期监控页：从「记账日历」小程序移植的定期存款管理。"""
+    s = db.get_settings()
+    users = db.list_users()
+    return render_template("fixed.html", settings=s, users=users)
+
+
+@app.route("/withdrawals")
+def withdrawals_page():
+    """本金支出 / 赎回：独立的支出记录台账页。"""
+    data = service.dashboard_data()
+    return render_template("withdrawals.html", data=data)
+
+
+@app.route("/fixed/deposit")
+def fixed_deposit_page():
+    """新增 / 编辑存单：独立表单页（仅管理员）。?id=xxx 为编辑模式。"""
+    u = current_user()
+    if not u or u["role"] != "admin":
+        return redirect(url_for("fixed_page"))
+    edit_id = request.args.get("id", "").strip()
+    return render_template("deposit-form.html", users=db.list_users(), edit_id=edit_id)
+
+
 # ---------------- API：登录认证 ----------------
 @app.route("/api/auth/login", methods=["POST"])
 def api_login():
@@ -304,7 +352,17 @@ def api_login():
         return jsonify({"ok": False, "error": "用户名或密码不正确"})
     session.clear()
     session["uid"] = user["id"]
+    # 持久登录：30 天内无需重复登录（cookie 带 Max-Age/Expires）
+    session.permanent = True
     db.touch_login(user["id"])
+    # 记录登录历史：谁、什么时间、来自哪个 IP / 设备
+    db.record_login(
+        user["id"], user.get("username", username), user.get("display_name", ""),
+        user["role"],
+        ip=(request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.remote_addr or ""),
+        user_agent=(request.headers.get("User-Agent") or "")[:300],
+    )
     logger.info(f"登录成功：{username}（{user['role']}）")
     return jsonify({"ok": True, "user": user})
 
@@ -327,6 +385,26 @@ def api_me():
 @app.route("/api/users")
 def api_users():
     return jsonify({"ok": True, "users": db.list_users(), "admin_count": db.admin_count()})
+
+
+@app.route("/api/login-history")
+def api_login_history():
+    """登录历史（仅管理员）：谁、什么时间、来自哪个 IP / 设备。"""
+    u = current_user()
+    if not u or u["role"] != "admin":
+        return jsonify({"ok": False, "error": "只有管理员可以查看登录记录"}), 403
+    return jsonify({"ok": True, "items": db.list_login_history(limit=200)})
+
+
+@app.route("/api/login-history/clear", methods=["POST"])
+def api_login_history_clear():
+    """清空登录历史（仅管理员）。"""
+    u = current_user()
+    if not u or u["role"] != "admin":
+        return jsonify({"ok": False, "error": "只有管理员可以清空登录记录"}), 403
+    db.clear_login_history()
+    logger.info(f"清空登录历史（操作人 {u.get('username')}）")
+    return jsonify({"ok": True})
 
 
 @app.route("/api/users", methods=["POST"])
@@ -763,7 +841,8 @@ def api_save_settings():
                "historical_profit", "psbc_historical_profit", "spdb_historical_profit",
                "app_yesterday_profit", "app_overall_annual", "app_ref_date",
                "psbc_app_yesterday_profit", "psbc_app_overall_annual",
-               "spdb_app_yesterday_profit", "spdb_app_overall_annual"]
+               "spdb_app_yesterday_profit", "spdb_app_overall_annual",
+               "fixed_notice_enabled", "fixed_notice_time", "fixed_notice_email"]
     updates = {k: body[k] for k in allowed if k in body}
     if "alert_annual" in updates:
         try:
@@ -961,6 +1040,327 @@ def api_data_import():
     except Exception as e:
         logger.exception("导入数据失败")
         return jsonify({"ok": False, "error": f"导入失败：{e}"}), 500
+
+
+# ---------------- API：定期存款存单（定期监控）----------------
+def _deposit_calc(save_date, expire_date, principal, rate_percent):
+    """按单利计算存期月数与预估利息，后端兜底（前端也会算一遍）。"""
+    from datetime import date as _date
+    try:
+        a = _date.fromisoformat(save_date)
+        b = _date.fromisoformat(expire_date)
+    except (ValueError, TypeError):
+        return 0.0, 0.0, float(principal or 0)
+    days = (b - a).days
+    if days <= 0:
+        return 0.0, 0.0, float(principal or 0)
+    # 存期月数：整月 + 零头天数按 30 天折算（与小程序 termMonths 口径一致）
+    months = (b.year - a.year) * 12 + (b.month - a.month)
+    if b.day < a.day:
+        months -= 1
+    if months < 0:
+        months = 0
+    from datetime import timedelta as _td
+    anchor_year = a.year + (a.month - 1 + months) // 12
+    anchor_month = (a.month - 1 + months) % 12 + 1
+    import calendar as _cal
+    anchor_day = min(a.day, _cal.monthrange(anchor_year, anchor_month)[1])
+    anchor = _date(anchor_year, anchor_month, anchor_day)
+    rest = max(0, (b - anchor).days)
+    term_months = months + min(rest, 30) / 30.0
+    p = float(principal or 0)
+    r = float(rate_percent or 0)
+    interest = round(p * (r / 100.0) * (term_months / 12.0), 2)
+    return round(term_months, 4), interest, round(p + interest, 2)
+
+
+def _validate_deposit(body, partial=False):
+    """校验并规范化存单入参，返回 (data, error)。"""
+    data = {}
+    if not partial or "bank_name" in body:
+        bank_name = (body.get("bank_name") or "").strip()
+        if not bank_name:
+            return None, "请填写银行名称"
+        data["bank_name"] = bank_name
+    if "bank_id" in body:
+        data["bank_id"] = (body.get("bank_id") or "").strip()
+    if "owner_uid" in body:
+        uid = body.get("owner_uid")
+        try:
+            data["owner_uid"] = int(uid) if uid not in (None, "", "null") else None
+        except (ValueError, TypeError):
+            return None, "归属成员格式不正确"
+    if not partial or "save_date" in body:
+        save_date = (body.get("save_date") or "").strip()
+        if not save_date:
+            return None, "请填写存入日期"
+        data["save_date"] = save_date
+    if not partial or "expire_date" in body:
+        expire_date = (body.get("expire_date") or "").strip()
+        if not expire_date:
+            return None, "请填写到期日期"
+        data["expire_date"] = expire_date
+    if not partial or "principal" in body:
+        try:
+            principal = float(body.get("principal"))
+        except (TypeError, ValueError):
+            return None, "本金格式不正确"
+        if principal <= 0:
+            return None, "本金必须大于 0"
+        data["principal"] = principal
+    if "rate_percent" in body:
+        try:
+            data["rate_percent"] = float(body.get("rate_percent") or 0)
+        except (ValueError, TypeError):
+            return None, "年利率格式不正确"
+    if "remark" in body:
+        data["remark"] = (body.get("remark") or "").strip()
+
+    # 重算存期/利息（当关键字段变化时）
+    need_calc = any(k in data for k in ("save_date", "expire_date", "principal", "rate_percent"))
+    if need_calc:
+        save_date = data.get("save_date")
+        expire_date = data.get("expire_date")
+        principal = data.get("principal")
+        rate = data.get("rate_percent", 0)
+        if save_date and expire_date and principal is not None:
+            if not partial:
+                tm, interest, total = _deposit_calc(save_date, expire_date, principal, rate)
+                data["term_months"], data["interest"], data["total_money"] = tm, interest, total
+            else:
+                # 部分更新：取库里现有值补齐后再算
+                dep_id = body.get("_id")
+                old = db.get_fixed_deposit(dep_id) if dep_id else None
+                sd = save_date or (old or {}).get("save_date")
+                ed = expire_date or (old or {}).get("expire_date")
+                pr = principal if principal is not None else (old or {}).get("principal")
+                rt = rate if "rate_percent" in data else (old or {}).get("rate_percent", 0)
+                if sd and ed and pr is not None:
+                    tm, interest, total = _deposit_calc(sd, ed, pr, rt)
+                    data["term_months"], data["interest"], data["total_money"] = tm, interest, total
+    return data, None
+
+
+@app.route("/api/fixed/deposits")
+def api_fixed_list():
+    owner = request.args.get("owner_uid")
+    owner_uid = int(owner) if owner and owner.isdigit() else None
+    return jsonify({"ok": True, "list": db.list_fixed_deposits(owner_uid)})
+
+
+@app.route("/api/fixed/deposits", methods=["POST"])
+def api_fixed_add():
+    body = request.get_json(silent=True) or {}
+    data, err = _validate_deposit(body, partial=False)
+    if err:
+        return jsonify({"ok": False, "error": err})
+    try:
+        new_id = db.add_fixed_deposit(data)
+    except Exception as e:
+        logger.exception("新增存单失败")
+        return jsonify({"ok": False, "error": f"保存失败：{e}"})
+    return jsonify({"ok": True, "message": "存单已添加", "id": new_id})
+
+
+@app.route("/api/fixed/deposits/<int:dep_id>", methods=["POST"])
+def api_fixed_update(dep_id):
+    body = request.get_json(silent=True) or {}
+    body["_id"] = dep_id
+    data, err = _validate_deposit(body, partial=True)
+    if err:
+        return jsonify({"ok": False, "error": err})
+    if not data:
+        return jsonify({"ok": True, "message": "没有需要更新的内容"})
+    try:
+        n = db.update_fixed_deposit(dep_id, data)
+    except Exception as e:
+        logger.exception("更新存单失败")
+        return jsonify({"ok": False, "error": f"保存失败：{e}"})
+    return jsonify({"ok": True, "message": "存单已更新", "updated": n})
+
+
+@app.route("/api/fixed/deposits/<int:dep_id>", methods=["DELETE"])
+def api_fixed_delete(dep_id):
+    n = db.delete_fixed_deposit(dep_id)
+    return jsonify({"ok": True, "deleted": n})
+
+
+@app.route("/api/fixed/deposits/batch-delete", methods=["POST"])
+def api_fixed_batch_delete():
+    body = request.get_json(silent=True) or {}
+    ids = body.get("ids") or []
+    if not isinstance(ids, list):
+        return jsonify({"ok": False, "error": "参数格式不正确"})
+    n = db.delete_fixed_deposits(ids)
+    return jsonify({"ok": True, "deleted": n})
+
+
+@app.route("/api/fixed/deposits/batch-owner", methods=["POST"])
+def api_fixed_batch_owner():
+    """批量修改存单归属成员（仅管理员，写操作由全局 auth_guard 拦截只读成员）。"""
+    body = request.get_json(silent=True) or {}
+    ids = body.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"ok": False, "error": "请先选择存单"})
+    if "owner_uid" not in body:
+        return jsonify({"ok": False, "error": "缺少归属成员参数"})
+    owner_uid = body.get("owner_uid")
+    if owner_uid is not None:
+        try:
+            owner_uid = int(owner_uid)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "归属成员参数不正确"})
+        if not db.get_user(owner_uid):
+            return jsonify({"ok": False, "error": "目标成员不存在"})
+    n = db.update_fixed_deposits_owner(ids, owner_uid)
+    return jsonify({"ok": True, "updated": n})
+
+
+@app.route("/api/fixed/export")
+def api_fixed_export():
+    """导出定期存单为「记账日历」小程序兼容的 finance-calendar JSON。"""
+    rows = db.list_fixed_deposits()
+    items = [{
+        "bankName": d.get("bank_name", ""),
+        "saveDate": d.get("save_date", ""),
+        "expireDate": d.get("expire_date", ""),
+        "principal": round(float(d.get("principal") or 0), 2),
+        "ratePercent": float(d.get("rate_percent") or 0),
+        "interest": round(float(d.get("interest") or 0), 2),
+        "totalMoney": round(float(d.get("total_money") or 0), 2),
+        "remark": d.get("remark", "") or "",
+    } for d in rows]
+    from datetime import timezone as _tz
+    payload = {
+        "app": "finance-calendar",
+        "version": 1,
+        "exportAt": datetime.now(_tz.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        "items": items,
+    }
+    return jsonify({"ok": True, "data": payload})
+
+
+@app.route("/api/fixed/import", methods=["POST"])
+def api_fixed_import():
+    """导入 finance-calendar JSON（兼容小程序导出格式），支持 append / replace。"""
+    body = request.get_json(silent=True) or {}
+    payload = body.get("data")
+    mode = (body.get("mode") or "append").strip()
+    if mode not in ("append", "replace"):
+        return jsonify({"ok": False, "error": "导入模式不正确"})
+    # data 可以是完整 payload（含 items），也可以直接是 items 数组
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get("items")
+    else:
+        items = None
+    if not isinstance(items, list):
+        return jsonify({"ok": False, "error": "未找到有效的 items 数据"})
+
+    # 归属成员：导入的存单统一归到指定成员，默认当前管理员
+    owner_raw = body.get("owner_uid")
+    u = current_user()
+    try:
+        owner_uid = int(owner_raw) if owner_raw not in (None, "", "null") else (u["id"] if u else None)
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "归属成员格式不正确"})
+
+    from datetime import date as _date
+    rows, skipped = [], []
+    for i, it in enumerate(items):
+        if not isinstance(it, dict):
+            skipped.append({"index": i, "reason": "条目格式不正确"})
+            continue
+        bank_name = str(it.get("bankName") or it.get("bank_name") or "").strip()
+        save_date = str(it.get("saveDate") or it.get("save_date") or "").strip()
+        expire_date = str(it.get("expireDate") or it.get("expire_date") or "").strip()
+        if not bank_name or not save_date or not expire_date:
+            skipped.append({"index": i, "reason": "缺少银行/存入日/到期日"})
+            continue
+        try:
+            _date.fromisoformat(save_date)
+            _date.fromisoformat(expire_date)
+        except (ValueError, TypeError):
+            skipped.append({"index": i, "reason": "日期格式不正确"})
+            continue
+        if expire_date <= save_date:
+            skipped.append({"index": i, "reason": "到期日不晚于存入日"})
+            continue
+        try:
+            principal = float(it.get("principal"))
+        except (TypeError, ValueError):
+            skipped.append({"index": i, "reason": "本金格式不正确"})
+            continue
+        if principal <= 0:
+            skipped.append({"index": i, "reason": "本金必须大于 0"})
+            continue
+        try:
+            rate = float(it.get("ratePercent") or it.get("rate_percent") or 0)
+        except (TypeError, ValueError):
+            rate = 0.0
+        # 利息/本息：优先采用文件里的值，缺失时按存期重算
+        try:
+            interest = float(it.get("interest")) if it.get("interest") not in (None, "") else None
+        except (TypeError, ValueError):
+            interest = None
+        try:
+            total = float(it.get("totalMoney") or it.get("total_money")) if (it.get("totalMoney") or it.get("total_money")) else None
+        except (TypeError, ValueError):
+            total = None
+        tm, calc_interest, calc_total = _deposit_calc(save_date, expire_date, principal, rate)
+        rows.append({
+            "owner_uid": owner_uid,
+            "bank_id": "",
+            "bank_name": bank_name,
+            "save_date": save_date,
+            "expire_date": expire_date,
+            "principal": principal,
+            "rate_percent": rate,
+            "term_months": tm,
+            "interest": round(interest, 2) if interest is not None else calc_interest,
+            "total_money": round(total, 2) if total is not None else calc_total,
+            "remark": str(it.get("remark") or "").strip(),
+        })
+
+    if not rows:
+        return jsonify({"ok": False, "error": "没有可导入的有效存单", "skipped": skipped[:20]})
+    try:
+        if mode == "replace":
+            db.clear_fixed_deposits()
+        added = db.add_fixed_deposits_bulk(rows)
+    except Exception as e:
+        logger.exception("导入定期存单失败")
+        return jsonify({"ok": False, "error": f"导入失败：{e}"})
+    return jsonify({
+        "ok": True,
+        "message": f"成功导入 {added} 笔存单" + (f"，跳过 {len(skipped)} 笔" if skipped else ""),
+        "imported": added,
+        "skipped_count": len(skipped),
+        "skipped": skipped[:20],
+    })
+
+
+@app.route("/api/fixed/notice/test", methods=["POST"])
+def api_fixed_notice_test():
+    """发送一封定期到期提醒测试邮件（到期当天 + 到期前一天，与实际提醒一致）。"""
+    from datetime import timedelta as _td
+    today = datetime.now().date()
+    due_today = db.fixed_deposits_expiring_on([today.isoformat()])
+    due_tomorrow = db.fixed_deposits_expiring_on([(today + _td(days=1)).isoformat()])
+    s = db.get_settings()
+    to = (s.get("fixed_notice_email") or "").strip() or (s.get("mail_to") or "").strip()
+    subject = f"定期存款到期提醒测试 · 到期当天 {len(due_today)} 笔 / 到期前一天 {len(due_tomorrow)} 笔"
+    # 与实际提醒复用同一套构造，测试邮件即真实邮件样式（含完整存单明细）
+    html = mailer.build_fixed_notice_html(due_today, due_tomorrow)
+    prefix = (
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:560px;'
+        'margin:0 auto 12px;padding:10px 14px;background:#eff6ff;border:1px solid #dbeafe;border-radius:10px;'
+        'color:#1d4ed8;font-size:12.5px;line-height:1.6;">这是一封测试邮件，样式与真实到期提醒完全一致。每笔存单会在'
+        '<b>到期前一天</b>与<b>到期当天</b>各提醒一次。</div>'
+    )
+    ok, msg = mailer.send_raw_mail(subject, prefix + html, to=to or None)
+    return jsonify({"ok": ok, "message": msg, "error": None if ok else msg})
 
 
 # ---------------- 启动 ----------------

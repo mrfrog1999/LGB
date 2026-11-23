@@ -311,51 +311,6 @@
   </div>
 </div>
 
-<!-- 本金支出记录（仅有支出时显示） -->
-{% if data.withdrawals %}
-<div class="card" style="padding:20px;margin-bottom:22px;">
-  <div class="expense-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
-    <div>
-      <div style="font-size:16px;font-weight:700;">本金支出（赎回 / 取出）</div>
-      <div class="muted" style="font-size:12px;margin-top:2px;">
-        建行：金额在建行全部产品间平均分摊；邮储 / 浦发：只从所选的那只产品扣减
-      </div>
-    </div>
-  </div>
-  <div class="table-scroll">
-  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px;">
-    <thead>
-      <tr style="background:#f8fafc;color:#64748b;text-align:left;">
-        <th style="padding:9px 12px;">支出日期</th>
-        <th style="padding:9px 12px;">扣减范围</th>
-        <th style="padding:9px 12px;text-align:right;">金额</th>
-        <th style="padding:9px 12px;">备注</th>
-        <th style="padding:9px 12px;text-align:center;">操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for w in data.withdrawals %}
-      <tr style="border-top:1px solid var(--border);">
-        <td style="padding:9px 12px;white-space:nowrap;">{{ w.expense_date }}</td>
-        <td style="padding:9px 12px;font-size:12px;">
-          {% if w.bank %}
-          <span class="badge badge-{{ w.bank }}">{% if w.bank=='psbc' %}邮储{% elif w.bank=='spdb' %}浦发{% else %}建行{% endif %}</span>
-          {% endif %}
-          <span class="muted">{{ w.scope_label }}</span>
-        </td>
-        <td style="padding:9px 12px;text-align:right;font-weight:600;color:var(--up);">−¥{{ '%.2f'|format(w.amount) }}</td>
-        <td style="padding:9px 12px;" class="muted">{{ w.note or '-' }}</td>
-        <td style="padding:9px 12px;text-align:center;">
-          {% if is_admin %}<button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" onclick="delWithdrawal({{ w.id }})"><svg class="ic" style="width:14px;height:14px"><use href="#i-trash"/></svg></button>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</div>
-{% endif %}
-
 {% if alert_enabled and low_products %}
 <div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid #f59e0b;background:#fffbeb;">
   <div style="font-size:13px;font-weight:600;color:#92400e;"><svg class="ic" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-alert"/></svg> {{ low_products|length }} 只产品七日年化低于 {{ '%.2f'|format(alert_annual) }}%</div>
@@ -1211,14 +1166,6 @@ async function submitWithdraw(){
     toast('减仓已记录，已从该产品扣减并重算');
     closeModal('withdrawModal');setTimeout(()=>location.reload(),400);
   }else{toast(res.error||'保存失败',false);}
-}
-
-async function delWithdrawal(id){
-  confirmModal('确定删除这条支出记录？系统会重算收益。',async()=>{
-    const res=await api('/api/withdrawals/'+id,{method:'DELETE'});
-    if(res.ok){toast('已删除并重算');setTimeout(()=>location.reload(),400);}
-    else toast(res.error||'删除失败',false);
-  },{title:'删除支出记录',okText:'删除'});
 }
 
 function fetchLogLevelColor(level){
