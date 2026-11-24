@@ -2,7 +2,7 @@
  * 与页面共用 static/pwa-offline.js（IndexedDB outbox）。 */
 importScripts('/pwa-offline-lib.js');
 
-var CACHE = 'lgb-pwa-v3';
+var CACHE = 'lgb-pwa-v4';
 var OFFLINE = '/offline.html';
 var SYNC_TAG = 'lgb-outbox-sync';
 
@@ -72,22 +72,28 @@ self.addEventListener('fetch', function (e) {
   if (path.indexOf('/api/') === 0) return; // API 一律走网络
 
   if (req.mode === 'navigate') {
+    // 缓存优先（stale-while-revalidate）：命中缓存立即返回实现秒开，
+    // 后台静默拉取最新版本更新缓存；弱网/离线时不再空白等待网络。
     e.respondWith(
-      fetch(req).then(function (resp) {
-        if (resp && resp.ok) {
-          var copy = resp.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copy); });
+      caches.match(req, { ignoreSearch: true }).then(function (cached) {
+        var network = fetch(req).then(function (resp) {
+          if (resp && resp.ok) {
+            var copy = resp.clone();
+            caches.open(CACHE).then(function (c) { c.put(req, copy); });
+          }
           return resp;
+        }).catch(function () { return null; });
+
+        if (cached) {
+          // 有缓存：立即返回缓存页秒开，后台更新（不阻塞首屏）
+          return cached;
         }
-        // 网关返回 403/404/5xx 等异常状态时，若有缓存则回退，避免看到错误页
-        return caches.match(req, { ignoreSearch: true })
-          .then(function (hit) { return hit || caches.match('/', { ignoreSearch: true }); })
-          .then(function (hit) { return hit || resp; });
-      }).catch(function () {
-        // 回退缓存：忽略 query 参数（sharecode 可能变化），优先命中任意已缓存页面
-        return caches.match(req, { ignoreSearch: true })
-          .then(function (hit) { return hit || caches.match('/', { ignoreSearch: true }); })
-          .then(function (hit) { return hit || caches.match(OFFLINE); });
+        // 无缓存：等待网络；失败则回退首页缓存或离线页
+        return network.then(function (resp) {
+          if (resp && resp.ok) return resp;
+          return caches.match('/', { ignoreSearch: true })
+            .then(function (hit) { return hit || caches.match(OFFLINE); });
+        });
       })
     );
     return;

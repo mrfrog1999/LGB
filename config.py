@@ -2,7 +2,7 @@
 import os
 
 # 应用版本号：唯一来源，由 bump_version.py 在每次推送 GitHub 前自动递增
-APP_VERSION = "v1.0.16"
+APP_VERSION = "v1.0.17"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
