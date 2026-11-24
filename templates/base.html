@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json{% if sharecode %}?sharecode={{ sharecode }}{% endif %}">
+  <meta name="theme-color" content="#ef4444">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="理财监控">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/static/favicon-64.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
@@ -344,6 +351,16 @@
     </div>
   </div>
 
+  <!-- 离线队列共享库（IndexedDB outbox），须在使用 api() 之前加载 -->
+  <script src="/pwa-offline-lib.js{% if sharecode %}?sharecode={{ sharecode }}{% endif %}"></script>
+
+  <!-- 离线 / 待同步状态条 -->
+  <div id="offlineBar" style="display:none;position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:130;
+       background:rgba(30,41,59,.94);color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;font-weight:600;
+       box-shadow:0 6px 24px rgba(16,24,40,.2);backdrop-filter:blur(8px);white-space:nowrap;cursor:pointer;">
+    <span id="offlineBarText">离线模式</span>
+  </div>
+
   <script>
     // 当前登录用户与权限（由后端注入），供各页面控制修改入口显隐
     const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
@@ -363,9 +380,38 @@
       const sc=new URLSearchParams(location.search).get('sharecode')||'{{ sharecode_fallback }}';
       return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);
     }
+    // ===== 离线写队列 =====
+    // 判断是否为写操作（POST/PUT/PATCH/DELETE）
+    function isWriteOp(opts){const m=((opts&&opts.method)||'GET').toUpperCase();return m==='POST'||m==='PUT'||m==='PATCH'||m==='DELETE';}
+    // 入队：把写请求存入 IndexedDB，返回乐观成功响应
+    async function queueWrite(url,opts){
+      if(!window.LGBOffline) return {ok:false,error:'离线队列未就绪',_offline:true};
+      try{
+        await LGBOffline.outboxAdd({
+          url:withSharecode(url),
+          method:((opts&&opts.method)||'POST').toUpperCase(),
+          body:(opts&&opts.body)||null,
+          headers:Object.assign({'Content-Type':'application/json'},(opts&&opts.headers)||{})
+        });
+        updateOfflineBadge();
+        return {ok:true,_queued:true};
+      }catch(e){
+        return {ok:false,error:'本地存储失败：'+e,_offline:true};
+      }
+    }
     async function api(url,opts={}){
-      const r=await fetch(withSharecode(url),{headers:{'Content-Type':'application/json'},...opts});
-      return r.json();
+      const doFetch=async()=>{
+        const r=await fetch(withSharecode(url),{headers:{'Content-Type':'application/json'},...opts});
+        return r.json();
+      };
+      if(isWriteOp(opts)){
+        // 明确离线时直接入队
+        if(!navigator.onLine) return queueWrite(url,opts);
+        // 在线但请求失败（含网关抖动）时兜底入队，避免数据丢失
+        try{ return await doFetch(); }
+        catch(e){ return queueWrite(url,opts); }
+      }
+      return doFetch();
     }
 
     // 统一确认弹窗：confirmModal(提示文案, 确认后回调, {title, okText, danger})
@@ -455,6 +501,83 @@
       modalObs.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
       syncTab();
     })();
+  </script>
+  <!-- PWA: Service Worker + 离线写队列同步 -->
+  <script>
+    // ---- 离线状态条 ----
+    function updateOfflineBadge(){
+      var bar=document.getElementById('offlineBar');
+      if(!bar||!window.LGBOffline) return;
+      LGBOffline.outboxCount().then(function(n){
+        var offline=!navigator.onLine;
+        if(!offline && !n){ bar.style.display='none'; return; }
+        bar.style.display='block';
+        var txt=document.getElementById('offlineBarText');
+        if(offline && n) txt.textContent='离线模式 · '+n+' 项待同步（点按重试）';
+        else if(offline) txt.textContent='离线模式 · 操作将自动暂存';
+        else txt.textContent=n+' 项待同步（点按重试）';
+      }).catch(function(){});
+    }
+
+    // ---- 冲洗离线队列（兼容 iOS：无 Background Sync 时靠这里）----
+    function flushQueue(){
+      if(!navigator.onLine || !window.LGBOffline) return;
+      // 交给 SW 作为唯一重放者，避免页面与 SW 同时重放造成重复提交；
+      // 结果通过 LGB_SYNC_RESULT 消息回传统一处理。
+      // iOS 无 Background Sync 时，页面触发的 message 同样能让 SW 重放。
+      if(navigator.serviceWorker && navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage({type:'LGB_FLUSH'});
+      }else{
+        // SW 尚未接管（首次加载）时的兜底：页面直连重放
+        LGBOffline.flushOutbox().then(function(res){
+          updateOfflineBadge();
+          if(res.synced>0){
+            toast('已同步 '+res.synced+' 项离线操作');
+            if(typeof window.onSynced==='function'){ try{window.onSynced();}catch(e){} }
+          }
+        }).catch(function(){});
+      }
+    }
+
+    // ---- 注册 SW + 事件绑定 ----
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function(){
+        var swUrl='/sw.js{% if sharecode %}?sharecode={{ sharecode }}{% endif %}';
+        navigator.serviceWorker.register(swUrl,{scope:'/'})
+          .then(function(reg){
+            // 注册 Background Sync（Android/桌面 Chrome）；iOS 忽略
+            if(reg.sync && reg.sync.register){
+              reg.sync.register('lgb-outbox-sync').catch(function(){});
+            }
+          })
+          .catch(function(){});
+
+        // 接收 SW 同步结果回调
+        navigator.serviceWorker.addEventListener('message',function(e){
+          var d=e.data||{};
+          if(d.type==='LGB_SYNC_RESULT'){
+            updateOfflineBadge();
+            if(d.synced>0){
+              toast('已同步 '+d.synced+' 项离线操作');
+              if(typeof window.onSynced==='function'){ try{window.onSynced();}catch(e){} }
+            }
+          }
+        });
+
+        // 恢复网络时自动冲洗
+        window.addEventListener('online',function(){ updateOfflineBadge(); flushQueue(); });
+        window.addEventListener('offline',function(){ updateOfflineBadge(); });
+
+        // 点按状态条手动重试
+        var bar=document.getElementById('offlineBar');
+        if(bar) bar.addEventListener('click',function(){ if(navigator.onLine) flushQueue(); });
+
+        // 启动即刷新状态并尝试冲洗；之后定时重试
+        updateOfflineBadge();
+        setTimeout(flushQueue,1200);
+        setInterval(function(){ updateOfflineBadge(); flushQueue(); },60000);
+      });
+    }
   </script>
   {% block scripts %}{% endblock %}
 </body>

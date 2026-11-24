@@ -14,6 +14,7 @@ import db
 import service
 import mailer
 from logo_asset import LOGO_DATA_URI
+from pwa import pwa_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -28,7 +29,11 @@ app.permanent_session_lifetime = timedelta(days=config.SESSION_LIFETIME_DAYS)
 # ---------------- 登录认证与权限 ----------------
 # 未登录可访问的路径（登录页、登录接口、图标等）
 # /api/widget/banks 免登录，但接口内部用 widget_token 独立鉴权
-PUBLIC_PATHS = {"/login", "/api/auth/login", "/favicon.ico", "/api/widget/banks"}
+PUBLIC_PATHS = {"/login", "/api/auth/login", "/favicon.ico", "/api/widget/banks",
+                "/manifest.json", "/sw.js", "/offline.html", "/pwa-offline-lib.js"}
+
+# PWA 支持：manifest / Service Worker / 离线兜底页
+app.register_blueprint(pwa_bp)
 
 
 def current_user():
@@ -87,6 +92,8 @@ def inject_user():
         "sharecode_fallback": config.SHARECODE_FALLBACK,
         "app_version": config.APP_VERSION,
         "logo_data_uri": LOGO_DATA_URI,
+        # 当前请求的 sharecode（优先 URL 参数，兜底环境变量），供 PWA 资源 URL 透传鉴权
+        "sharecode": request.args.get("sharecode", config.SHARECODE_FALLBACK),
     }
 
 
