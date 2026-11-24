@@ -13,6 +13,7 @@ import config
 import db
 import service
 import mailer
+from logo_asset import LOGO_DATA_URI
 from apscheduler.schedulers.background import BackgroundScheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -85,6 +86,7 @@ def inject_user():
         "is_admin": bool(u and u["role"] == "admin"),
         "sharecode_fallback": config.SHARECODE_FALLBACK,
         "app_version": config.APP_VERSION,
+        "logo_data_uri": LOGO_DATA_URI,
     }
 
 
