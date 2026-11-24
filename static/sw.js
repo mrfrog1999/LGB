@@ -2,7 +2,7 @@
  * 与页面共用 static/pwa-offline.js（IndexedDB outbox）。 */
 importScripts('/pwa-offline-lib.js');
 
-var CACHE = 'lgb-pwa-v2';
+var CACHE = 'lgb-pwa-v3';
 var OFFLINE = '/offline.html';
 var SYNC_TAG = 'lgb-outbox-sync';
 
@@ -77,10 +77,17 @@ self.addEventListener('fetch', function (e) {
         if (resp && resp.ok) {
           var copy = resp.clone();
           caches.open(CACHE).then(function (c) { c.put(req, copy); });
+          return resp;
         }
-        return resp;
+        // 网关返回 403/404/5xx 等异常状态时，若有缓存则回退，避免看到错误页
+        return caches.match(req, { ignoreSearch: true })
+          .then(function (hit) { return hit || caches.match('/', { ignoreSearch: true }); })
+          .then(function (hit) { return hit || resp; });
       }).catch(function () {
-        return caches.match(req).then(function (hit) { return hit || caches.match(OFFLINE); });
+        // 回退缓存：忽略 query 参数（sharecode 可能变化），优先命中任意已缓存页面
+        return caches.match(req, { ignoreSearch: true })
+          .then(function (hit) { return hit || caches.match('/', { ignoreSearch: true }); })
+          .then(function (hit) { return hit || caches.match(OFFLINE); });
       })
     );
     return;
