@@ -590,6 +590,18 @@ const IS_ADMIN_FX = {{ 'true' if is_admin else 'false' }};
 const FX_USERS = {{ users|tojson }};
 let FX_DEPOSITS = [];
 let FX_CUR_VIEW = 'cal';   // 当前视图：cal 固定总计 / stat 跟随筛选
+// 存单数据缓存：底部 tab 整页跳转后，短时间内直接用缓存秒开，避免每次都重新请求接口
+const FX_CACHE_KEY='fx_deposits_cache_{{ current_user.id if current_user else "anon" }}';
+const FX_CACHE_TTL=60*1000; // 60 秒内视为新鲜，切回来不再请求
+function fxReadCache(){try{const raw=sessionStorage.getItem(FX_CACHE_KEY);if(!raw)return null;const o=JSON.parse(raw);return (o&&Array.isArray(o.list)&&o.t)?o:null;}catch(e){return null;}}
+function fxWriteCache(list){try{sessionStorage.setItem(FX_CACHE_KEY,JSON.stringify({t:Date.now(),list:list}));}catch(e){}}
+function fxApplyLoaded(){
+  FX_SELECTED=new Set();
+  fxBuildSfOptions();
+  fxRefreshStat();
+  renderFxList(); renderFxCal(); renderFxMembers();
+  buildFxFilters();
+}
 // 统计时间筛选状态：mode=all|year|month|day，field=save_date|expire_date
 const FX_STAT_FILTER = {mode:'all', field:'save_date', year:'', month:'', day:'', bank:'', owner:''};
 
@@ -690,15 +702,21 @@ function fxStatus(d){
 function money2(n){return '¥'+(Number(n)||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 // ---------- 加载 ----------
-async function loadFx(){
+async function loadFx(force){
+  // 1) 有缓存先用缓存渲染，页面切回来秒开（force 时跳过，保证写操作后拿到最新）
+  const cache=fxReadCache();
+  if(!force && cache){
+    FX_DEPOSITS=cache.list;
+    fxApplyLoaded();
+    // 缓存新鲜则不发请求；过期则后台静默刷新
+    if(Date.now()-cache.t < FX_CACHE_TTL) return;
+  }
+  // 2) 拉取最新数据并写入缓存
   const r=await api('/api/fixed/deposits');
   if(!r||!r.ok){toast('加载存单失败',false);return;}
   FX_DEPOSITS=r.list||[];
-  FX_SELECTED=new Set();
-  fxBuildSfOptions();          // 依据最新数据构建统计筛选的年月选项
-  fxRefreshStat();             // 顶部汇总 + 统计图表（按筛选）
-  renderFxList(); renderFxCal(); renderFxMembers();
-  buildFxFilters();
+  fxWriteCache(FX_DEPOSITS);
+  fxApplyLoaded();
 }
 function buildFxFilters(){
   const bankSel=document.getElementById('fxFilterBank');
@@ -971,7 +989,7 @@ async function batchDeleteFx(){
   if(!ids.length)return;
   confirmModal(`确定删除选中的 ${ids.length} 笔存单吗？此操作不可恢复。`,async()=>{
     const r=await api('/api/fixed/deposits/batch-delete',{method:'POST',body:JSON.stringify({ids})});
-    if(r&&r.ok){toast(`已删除 ${r.deleted} 笔`);loadFx();}else toast((r&&r.error)||'删除失败',false);
+    if(r&&r.ok){toast(`已删除 ${r.deleted} 笔`);loadFx(true);}else toast((r&&r.error)||'删除失败',false);
   },{title:'批量删除存单',okText:'确认删除',danger:true});
 }
 // 批量修改归属成员
@@ -993,14 +1011,14 @@ async function doBatchOwner(){
   const name=sel.value?sel.options[sel.selectedIndex].text:'清除归属';
   confirmModal(`确定将选中的 ${ids.length} 笔存单归属改为「${name}」吗？`,async()=>{
     const r=await api('/api/fixed/deposits/batch-owner',{method:'POST',body:JSON.stringify({ids,owner_uid})});
-    if(r&&r.ok){closeModal('fxBatchOwnerModal');toast(`已修改 ${r.updated} 笔归属`);loadFx();}
+    if(r&&r.ok){closeModal('fxBatchOwnerModal');toast(`已修改 ${r.updated} 笔归属`);loadFx(true);}
     else toast((r&&r.error)||'修改失败',false);
   },{title:'批量修改归属',okText:'确认修改'});
 }
 function deleteFx(id){
   confirmModal('确定删除这笔存单吗？此操作不可恢复。',async()=>{
     const r=await api('/api/fixed/deposits/'+id,{method:'DELETE'});
-    if(r&&r.ok){toast('已删除');loadFx();}else toast((r&&r.error)||'删除失败',false);
+    if(r&&r.ok){toast('已删除');loadFx(true);}else toast((r&&r.error)||'删除失败',false);
   },{title:'删除存单',okText:'确认删除',danger:true});
 }
 
@@ -1317,7 +1335,7 @@ async function saveDeposit(){
     rate_percent:Number(rate)||0,remark:document.getElementById('f-dep-remark').value.trim()};
   const url=id?'/api/fixed/deposits/'+id:'/api/fixed/deposits';
   const r=await api(url,{method:'POST',body:JSON.stringify(body)});
-  if(r&&r.ok){toast(id?'已保存修改':'存单已添加');closeModal('depositModal');loadFx();}
+  if(r&&r.ok){toast(id?'已保存修改':'存单已添加');closeModal('depositModal');loadFx(true);}
   else toast((r&&r.error)||'保存失败',false);
 }
 
@@ -1444,7 +1462,7 @@ async function doFxImport(){
     if(r&&r.ok){
       closeModal('fxImportModal');
       toast(r.message||'导入完成');
-      loadFx();
+      loadFx(true);
     }else{
       toast((r&&r.error)||'导入失败',false);
     }

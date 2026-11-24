@@ -345,7 +345,11 @@ async function saveDeposit(){
   const url=id?'/api/fixed/deposits/'+id:'/api/fixed/deposits';
   const btn=document.getElementById('dfSaveBtn');btn.disabled=true;btn.textContent='保存中…';
   const r=await api(url,{method:'POST',body:JSON.stringify(body)});
-  if(r&&r.ok){toast(id?'已保存修改':'存单已添加');setTimeout(goBack,400);}
+  if(r&&r.ok){
+    // 清除存单缓存，确保跳回定期监控页后读到最新数据
+    try{sessionStorage.removeItem('fx_deposits_cache_{{ current_user.id if current_user else "anon" }}');}catch(e){}
+    toast(id?'已保存修改':'存单已添加');setTimeout(goBack,400);
+  }
   else{toast((r&&r.error)||'保存失败',false);btn.disabled=false;btn.textContent='保存存单';}
 }
 
