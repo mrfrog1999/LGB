@@ -539,6 +539,29 @@
       }
     }
 
+    // ---- 预热离线缓存：后台抓取所有页面与关键数据 API ----
+    // 只缓存页面外壳/只读数据；写操作仍由 api() 离线入队处理。
+    function prewarmOffline(){
+      if(!navigator.onLine) return; // 离线时不预热
+      var pages=['/','/withdrawals','/fixed','/settings','/fixed/deposit'];
+      var dataApis=['/api/holdings','/api/fixed/deposits','/api/withdrawals','/api/additions'];
+      // 页面外壳：GET HTML 后交给 SW 缓存（用完整 URL 作 key，忽略 query 匹配）
+      pages.forEach(function(p){
+        fetch(withSharecode(p),{credentials:'same-origin'}).then(function(r){
+          if(!r.ok) return null;
+          return r.text();
+        }).then(function(html){
+          if(html && navigator.serviceWorker && navigator.serviceWorker.controller){
+            navigator.serviceWorker.controller.postMessage({type:'LGB_CACHE_PAGE',url:withSharecode(p),html:html});
+          }
+        }).catch(function(){});
+      });
+      // 数据 API：走 SW 的 isDataApi 分支（网络优先+写缓存），离线时可读快照
+      dataApis.forEach(function(a){
+        fetch(withSharecode(a),{credentials:'same-origin',headers:{'Content-Type':'application/json'}}).catch(function(){});
+      });
+    }
+
     // ---- 注册 SW + 事件绑定 ----
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function(){
@@ -557,6 +580,9 @@
                 ctl.postMessage({type:'LGB_CACHE_PAGE', url:location.href, html:'<!DOCTYPE html>\n'+document.documentElement.outerHTML});
               }
             }catch(e){}
+            // 预热：登录后后台抓取所有页面 + 关键数据 API，交给 SW 缓存，
+            // 这样离线点任意菜单都有对应页面与数据，而不是只显示首页。
+            try{ prewarmOffline(); }catch(e){}
           })
           .catch(function(){});
 
