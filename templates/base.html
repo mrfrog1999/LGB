@@ -290,7 +290,7 @@
           <b>{{ current_user.display_name or current_user.username }}</b>
           <span class="user-role {{ current_user.role }}">{{ '管理员' if current_user.role=='admin' else '成员' }}</span>
         </span>
-        <a href="/logout" class="btn-logout" title="退出登录"><svg class="ic"><use href="#i-logout"/></svg></a>
+        <a href="/logout" class="btn-logout" title="退出登录" onclick="try{if(navigator.serviceWorker&&navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:'LGB_CLEAR_DATA'});}catch(e){}"><svg class="ic"><use href="#i-logout"/></svg></a>
       </div>
       {% endif %}
     </div>
@@ -549,6 +549,14 @@
             if(reg.sync && reg.sync.register){
               reg.sync.register('lgb-outbox-sync').catch(function(){});
             }
+            // SW 接管后，把当前已渲染的完整页面 HTML 交给 SW 缓存。
+            // 解决"首次导航发生在 SW 接管前、页面从未被缓存"导致离线落离线页的问题。
+            try{
+              var ctl = reg.active || navigator.serviceWorker.controller;
+              if(ctl && document.documentElement){
+                ctl.postMessage({type:'LGB_CACHE_PAGE', url:location.href, html:'<!DOCTYPE html>\n'+document.documentElement.outerHTML});
+              }
+            }catch(e){}
           })
           .catch(function(){});
 

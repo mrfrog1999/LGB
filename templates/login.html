@@ -134,7 +134,16 @@ document.getElementById('loginForm').addEventListener('submit',async function(e)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function(){
       var swUrl='/sw.js{% if sharecode %}?sharecode={{ sharecode }}{% endif %}';
-      navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(function(){});
+      navigator.serviceWorker.register(swUrl,{scope:'/'})
+        .then(function(reg){
+          // 把登录页完整 HTML 交给 SW 缓存，确保首次冷启动本地一定有页面
+          try{
+            var ctl=reg.active||navigator.serviceWorker.controller;
+            if(ctl&&document.documentElement)
+              ctl.postMessage({type:'LGB_CACHE_PAGE',url:location.href,html:'<!DOCTYPE html>\n'+document.documentElement.outerHTML});
+          }catch(e){}
+        })
+        .catch(function(){});
     });
   }
 </script>
