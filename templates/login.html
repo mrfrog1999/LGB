@@ -70,7 +70,7 @@
     <div class="brand">
       <span class="dot"><img src="{{ logo_data_uri }}" alt="logo"></span>
       <h1>现金理财监控<span class="ver-tag">{{ app_version }}</span></h1>
-      <p>登录后查看与管理您的理财数据</p>
+      <p id="loginSubtitle">登录后查看与管理您的理财数据</p>
     </div>
     <div class="field">
       <label for="username">用户名</label>
@@ -92,6 +92,11 @@
   </form>
 <script>
 const urlParams=new URLSearchParams(location.search);
+// 登录过期被踢回登录页时给出友好提示
+if(urlParams.get('need_login')==='1'){
+  var sub=document.getElementById('loginSubtitle');
+  if(sub){sub.textContent='登录已过期，请重新登录';sub.style.color='var(--brand2)';sub.style.fontWeight='600';}
+}
 function withSharecode(url){
   const sc=urlParams.get('sharecode')||'{{ sharecode_fallback }}';
   return url+(url.indexOf('?')>=0?'&':'?')+'sharecode='+encodeURIComponent(sc);

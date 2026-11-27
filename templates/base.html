@@ -290,7 +290,7 @@
           <b>{{ current_user.display_name or current_user.username }}</b>
           <span class="user-role {{ current_user.role }}">{{ '管理员' if current_user.role=='admin' else '成员' }}</span>
         </span>
-        <a href="/logout" class="btn-logout" title="退出登录" onclick="try{if(navigator.serviceWorker&&navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:'LGB_CLEAR_DATA'});}catch(e){}"><svg class="ic"><use href="#i-logout"/></svg></a>
+        <a href="/logout" class="btn-logout" title="退出登录" onclick="doLogout(event)"><svg class="ic"><use href="#i-logout"/></svg></a>
       </div>
       {% endif %}
     </div>
@@ -399,9 +399,58 @@
         return {ok:false,error:'本地存储失败：'+e,_offline:true};
       }
     }
+    // 登录过期统一处理：跳转登录页并带回跳地址，同时清掉缓存的登录态页面，
+    // 避免缓存优先再次把旧的"已登录"页面显示出来导致卡死。
+    let _redirectingLogin=false;
+    function handleNeedLogin(){
+      if(_redirectingLogin) return;
+      _redirectingLogin=true;
+      try{
+        // 清掉 SW 里缓存的页面外壳与数据快照（下次登录回来拿全新页面）
+        if(navigator.serviceWorker&&navigator.serviceWorker.controller)
+          navigator.serviceWorker.controller.postMessage({type:'LGB_CLEAR_DATA'});
+      }catch(e){}
+      // 登录过期同样要清离线写队列，避免换账号后重放上一人的待提交操作
+      try{ if(window.LGBOffline&&LGBOffline.outboxClear) LGBOffline.outboxClear(); }catch(e){}
+      var sc=new URLSearchParams(location.search).get('sharecode')||'{{ sharecode_fallback }}';
+      // 回跳地址保留原始 query（如 ?id=xxx），但去掉 sharecode——登录页会统一补上，
+      // 避免重复拼接出 "/&sharecode=x?sharecode=x" 这种坏 URL。
+      var qs=new URLSearchParams(location.search);
+      qs.delete('sharecode');
+      var rest=qs.toString();
+      var next=location.pathname+(rest?('?'+rest):'');
+      // 只回跳业务页，不回跳登录页本身
+      if('/login'===location.pathname) next='/';
+      location.href='/login?need_login=1&next='+encodeURIComponent(next)+'&sharecode='+encodeURIComponent(sc);
+    }
+    // 退出登录（PWA 可靠版）：
+    // 1) 先清 SW 里缓存的「已登录」页面 + 数据快照，避免缓存优先把旧页面再显示出来；
+    // 2) 清 IndexedDB 离线写队列，避免下一个用户重放上一人的待提交操作；
+    // 3) 通知服务端 clear session；
+    // 4) 用 replace 跳登录页（不留在历史栈，防止后退键回到缓存的已登录页）。
+    async function doLogout(ev){
+      if(ev) ev.preventDefault();
+      var sc=new URLSearchParams(location.search).get('sharecode')||'{{ sharecode_fallback }}';
+      try{
+        if(navigator.serviceWorker&&navigator.serviceWorker.controller)
+          navigator.serviceWorker.controller.postMessage({type:'LGB_CLEAR_DATA'});
+      }catch(e){}
+      try{ if(window.LGBOffline&&LGBOffline.outboxClear) await LGBOffline.outboxClear(); }catch(e){}
+      try{
+        await fetch(withSharecode('/api/auth/logout'),{method:'POST',credentials:'same-origin'});
+      }catch(e){}
+      location.replace('/login?sharecode='+encodeURIComponent(sc));
+    }
     async function api(url,opts={}){
       const doFetch=async()=>{
         const r=await fetch(withSharecode(url),{headers:{'Content-Type':'application/json'},...opts});
+        // 登录过期：服务端返回 401 + need_login（或网关 302 到登录页的 HTML）。
+        // 缓存优先会让我们停在旧的已登录页面，必须在这里主动跳登录页。
+        if(r.status===401){
+          let body=null;
+          try{ body=await r.clone().json(); }catch(e){}
+          if(url.indexOf('/api/auth/')<0 && (body&&body.need_login)) handleNeedLogin();
+        }
         return r.json();
       };
       if(isWriteOp(opts)){
@@ -610,6 +659,17 @@
         updateOfflineBadge();
         setTimeout(flushQueue,1200);
         setInterval(function(){ updateOfflineBadge(); flushQueue(); },60000);
+
+        // 启动登录态校验：缓存优先会显示旧的已登录页面，需主动核实会话是否有效。
+        // 仅在在线时校验；离线或网络抖动（fetch 抛错）时保持缓存页面，不误跳。
+        if(navigator.onLine){
+          fetch(withSharecode('/api/auth/me'),{credentials:'same-origin'}).then(function(r){
+            if(r.status!==401) return;
+            return r.json().then(function(b){
+              if(b && b.need_login) handleNeedLogin();
+            }).catch(function(){});
+          }).catch(function(){});
+        }
       });
     }
   </script>

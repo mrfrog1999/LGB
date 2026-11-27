@@ -2,8 +2,8 @@
  * 与页面共用 static/pwa-offline.js（IndexedDB outbox）。 */
 importScripts('/pwa-offline-lib.js');
 
-var CACHE = 'lgb-pwa-v5';       // 应用外壳 / 页面 / 静态资源
-var DATA_CACHE = 'lgb-data-v5'; // 数据型 GET API 的离线快照（独立于页面，便于登出清理）
+var CACHE = 'lgb-pwa-v6';       // 应用外壳 / 页面 / 静态资源
+var DATA_CACHE = 'lgb-data-v6'; // 数据型 GET API 的离线快照（独立于页面，便于登出清理）
 var OFFLINE = '/offline.html';
 var SYNC_TAG = 'lgb-outbox-sync';
 // SW 脚本注册 URL 带 sharecode（/sw.js?sharecode=xxx），据此构造过网关鉴权的预缓存 URL
@@ -74,8 +74,22 @@ self.addEventListener('message', function (e) {
   if (d.type === 'LGB_FLUSH') {
     e.waitUntil(replayOutbox());
   } else if (d.type === 'LGB_CLEAR_DATA') {
-    // 登出时清理数据快照，避免不同用户之间串号
-    e.waitUntil(caches.delete(DATA_CACHE));
+    // 退出登录 / 登录过期：必须清空全部页面缓存 + 数据快照。
+    // 否则缓存优先会把旧的「已登录」页面再次显示出来，出现「退不干净 / 卡死」。
+    e.waitUntil(
+      Promise.all([
+        caches.delete(CACHE),
+        caches.delete(DATA_CACHE)
+      ]).then(function () {
+        // 立即重建最小离线外壳，避免清空后冷启动直接落离线页
+        return caches.open(CACHE).then(function (c) {
+          return Promise.allSettled([
+            c.add(new Request(OFFLINE, { credentials: 'same-origin' })),
+            c.add(new Request('/pwa-offline-lib.js', { credentials: 'same-origin' }))
+          ]);
+        });
+      })
+    );
   } else if (d.type === 'LGB_CACHE_PAGE' && d.html) {
     // 页面在线加载成功后，主动把自己的完整 HTML 交给 SW 缓存，
     // 作为"外壳预缓存"之外的补充，确保用户实际访问过的页面都能离线打开。
@@ -123,6 +137,17 @@ self.addEventListener('fetch', function (e) {
 
   // ---- 其余 API（auth/widget/动作类）一律走网络，不缓存 ----
   if (path.indexOf('/api/') === 0) return;
+
+  // ---- 认证页导航：强制走网络，绝不读/写缓存 ----
+  // 退出登录 / 登录页必须与服务端会话保持一致。缓存优先会在登录态变更后
+  // 命中旧的「已登录」HTML，导致退出按钮点了没反应、登录态卡死。
+  if (req.mode === 'navigate' && (path === '/login' || path === '/logout')) {
+    e.respondWith(fetch(req).catch(function () {
+      return caches.match('/login' + SW_SEARCH, { ignoreSearch: true })
+        .then(function (hit) { return hit || caches.match(OFFLINE); });
+    }));
+    return;
+  }
 
   // ---- 页面导航：缓存优先（stale-while-revalidate）----
   // 命中缓存立即返回实现秒开与离线可用；后台静默更新；无缓存才等网络。
